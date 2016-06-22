@@ -1,0 +1,81 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>OccupancyService</name>
+    </assembly>
+    <members>
+        <member name="M:OccupancyService.Controllers.TestController.Test">
+            <summary>
+            Simple test, should return "OK"
+            </summary>
+            <remarks>
+            Simple test, should return "OK"
+            </remarks>
+        </member>
+        <member name="T:OccupancyService.Controllers.OccupanciesController">
+            <summary>
+            All occupancies of all rooms
+            </summary>
+        </member>
+        <member name="M:OccupancyService.Controllers.OccupanciesController.Get">
+            <summary>
+            Gets occupancy history of all rooms
+            </summary>
+            <remarks>
+            Gets occupancy history of all rooms
+            </remarks>
+            <returns></returns>
+        </member>
+        <member name="M:OccupancyService.Controllers.OccupanciesController.Get(System.Int32)">
+            <summary>
+            Gets occupancy history of a given room
+            </summary>
+            <remarks>
+            Gets occupancy history of a given room
+            </remarks>
+            <returns></returns>
+        </member>
+        <member name="M:OccupancyService.Controllers.OccupanciesController.Post(System.Int32,System.Boolean)">
+            <summary>
+            Updates the status of a given room
+            </summary>
+            <remarks>
+            Updates the status of a given room
+            </remarks>
+            <returns></returns>
+            <param name="id">The room id</param>
+            <param name="isOccupied">Indicates if the room is currently occupied or not</param>
+            <returns></returns>
+        </member>
+        <member name="T:OccupancyService.Models.Occupancy">
+            <summary>
+            Represents a single occupancy
+            </summary>
+        </member>
+        <member name="P:OccupancyService.Models.Occupancy.Id">
+            <summary>
+            The occupancy id
+            </summary>
+        </member>
+        <member name="P:OccupancyService.Models.Occupancy.RoomId">
+            <summary>
+            The room id
+            </summary>
+        </member>
+        <member name="P:OccupancyService.Models.Occupancy.StartTime">
+            <summary>
+            The time the room started to become occupied
+            </summary>
+        </member>
+        <member name="P:OccupancyService.Models.Occupancy.EndTime">
+            <summary>
+            The time when the room became unoccupied again
+            </summary>
+        </member>
+        <member name="T:OccupancyService.Repositories.OccupancyRepository">
+            <summary>
+            Mockup repository
+            </summary>
+        </member>
+    </members>
+</doc>
