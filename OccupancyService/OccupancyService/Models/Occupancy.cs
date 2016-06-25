@@ -19,7 +19,7 @@ namespace OccupancyService.Models
         /// <summary>
         /// The room id
         /// </summary>
-        public int RoomId { get; set; }
+        public long RoomId { get; set; }
 
         /// <summary>
         /// The time the room started to become occupied

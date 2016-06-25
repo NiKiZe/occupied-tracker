@@ -13,20 +13,38 @@ namespace OccupancyService.Repositories
     {
         private static List<Occupancy> _occupancies = new List<Occupancy>();
 
-        public IEnumerable<Occupancy> GetAll(IEnumerable<int> roomIds = null)
+        public IEnumerable<Occupancy> GetAll(List<long> roomIds, DateTime? fromTime = null, DateTime? toTime = null)
         {
             IEnumerable<Occupancy> occupancies = _occupancies;
 
-            if (roomIds != null)
+            if (roomIds != null && roomIds.Count > 0)
             {
                 // Filter on given rooms
                 occupancies = occupancies.Where(x => roomIds.Contains(x.RoomId));
             }
 
+            if (fromTime.HasValue)
+            {
+                // Filter on fromTime
+                occupancies = occupancies.Where(x => x.StartTime >= fromTime.Value);
+            }
+
+            if (toTime.HasValue)
+            {
+                // Filter on toTime
+                occupancies = occupancies.Where(x => x.StartTime <= toTime.Value);
+            }
+
             // Sort on id, because why not
             return occupancies.OrderBy(x => x.Id);
         }
-        public Occupancy GetLastOccupancy(int roomId)
+
+        public Occupancy Get(long id)
+        {
+            return _occupancies.FirstOrDefault(x => x.Id == id);
+        }
+
+        public Occupancy GetLastOccupancy(long roomId)
         {
             return _occupancies.Last(x => x.RoomId == roomId);
         }
@@ -40,6 +58,10 @@ namespace OccupancyService.Repositories
         
         public Occupancy Update(Occupancy occupancy)
         {
+            if (_occupancies.All(x => x.Id != occupancy.Id))
+            {
+                return null;
+            }
             _occupancies.RemoveAll(x => x.Id == occupancy.Id);
             _occupancies.Add(occupancy);
             return occupancy;

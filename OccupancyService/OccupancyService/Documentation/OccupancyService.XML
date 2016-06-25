@@ -4,48 +4,91 @@
         <name>OccupancyService</name>
     </assembly>
     <members>
-        <member name="M:OccupancyService.Controllers.TestController.Test">
+        <member name="T:OccupancyService.Controllers.RoomsController">
             <summary>
-            Simple test, should return "OK"
+            All rooms
+            </summary>
+        </member>
+        <member name="M:OccupancyService.Controllers.RoomsController.Get">
+            <summary>
+            Gets list of all rooms
             </summary>
             <remarks>
-            Simple test, should return "OK"
+            Gets list of all rooms
             </remarks>
+            <returns></returns>
         </member>
-        <member name="T:OccupancyService.Controllers.OccupanciesController">
+        <member name="M:OccupancyService.Controllers.RoomsController.Get(System.Int64)">
             <summary>
-            All occupancies of all rooms
+            Gets a single room
             </summary>
+            <remarks>
+            Gets a single room
+            </remarks>
+            <returns></returns>
         </member>
-        <member name="M:OccupancyService.Controllers.OccupanciesController.Get">
+        <member name="M:OccupancyService.Controllers.RoomsController.Post(OccupancyService.Models.NewRoom)">
+            <summary>
+            Creates a new room
+            </summary>
+            <remarks>
+            Creates a new room
+            </remarks>
+            <returns></returns>
+        </member>
+        <member name="M:OccupancyService.Controllers.RoomsController.GetOccupancies(System.Collections.Generic.List{System.Int64},System.Nullable{System.DateTime},System.Nullable{System.DateTime})">
             <summary>
             Gets occupancy history of all rooms
             </summary>
             <remarks>
             Gets occupancy history of all rooms
             </remarks>
+            <param name="roomIds">Limit occupancies to these rooms</param>
+            <param name="fromTime">Limit occupancies to starttime after this time</param>
+            <param name="toTime">Limit occupancies to starttime before this time</param>
             <returns></returns>
         </member>
-        <member name="M:OccupancyService.Controllers.OccupanciesController.Get(System.Int32)">
+        <member name="M:OccupancyService.Controllers.RoomsController.Put(System.Int64,OccupancyService.Models.Room)">
             <summary>
-            Gets occupancy history of a given room
+            Updates the given room
             </summary>
             <remarks>
-            Gets occupancy history of a given room
+            Updates the given room
             </remarks>
             <returns></returns>
         </member>
-        <member name="M:OccupancyService.Controllers.OccupanciesController.Post(System.Int32,System.Boolean)">
+        <member name="M:OccupancyService.Controllers.RoomsController.GetOccupancy(System.Int64,System.Nullable{System.DateTime},System.Nullable{System.DateTime})">
+            <summary>
+            Gets occupancy history of a single room
+            </summary>
+            <remarks>
+            Gets occupancy history of a single room
+            </remarks>
+            <param name="id">The room id</param>
+            <param name="fromTime">Limit occupancies to starttime after this time</param>
+            <param name="toTime">Limit occupancies to starttime before this time</param>
+            <returns></returns>
+        </member>
+        <member name="M:OccupancyService.Controllers.RoomsController.PostOccupancy(System.Int64,System.Boolean)">
             <summary>
             Updates the status of a given room
             </summary>
             <remarks>
             Updates the status of a given room
             </remarks>
-            <returns></returns>
             <param name="id">The room id</param>
             <param name="isOccupied">Indicates if the room is currently occupied or not</param>
             <returns></returns>
+        </member>
+        <member name="T:OccupancyService.Models.NewRoom">
+            <summary>
+            Represents a single room
+            </summary>
+        </member>
+        <member name="P:OccupancyService.Models.NewRoom.Description">
+            <summary>
+            Name of room
+            </summary>
         </member>
         <member name="T:OccupancyService.Models.Occupancy">
             <summary>
@@ -70,6 +113,21 @@
         <member name="P:OccupancyService.Models.Occupancy.EndTime">
             <summary>
             The time when the room became unoccupied again
+            </summary>
+        </member>
+        <member name="T:OccupancyService.Models.Room">
+            <summary>
+            Represents a single room
+            </summary>
+        </member>
+        <member name="P:OccupancyService.Models.Room.Id">
+            <summary>
+            Room id
+            </summary>
+        </member>
+        <member name="P:OccupancyService.Models.Room.Description">
+            <summary>
+            Name of room
             </summary>
         </member>
         <member name="T:OccupancyService.Repositories.OccupancyRepository">

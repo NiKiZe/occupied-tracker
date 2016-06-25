@@ -29,7 +29,7 @@ namespace OccupancyService
             app.MapSignalR();
 
             // Set up WebAPI 
-            //config.MapHttpAttributeRoutes(new CustomDirectRouteProvider());
+            config.MapHttpAttributeRoutes(new CustomDirectRouteProvider());
             config.Routes.MapHttpRoute("DefaultApi", "{controller}/{id}", new { id = RouteParameter.Optional }
                 );
             app.UseWebApi(config);
