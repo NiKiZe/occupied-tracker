@@ -1,8 +1,13 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web;
+using Microsoft.Azure;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Table;
 using OccupancyService.Models;
+using OccupancyService.TableEntities;
 
 namespace OccupancyService.Repositories
 {
@@ -11,60 +16,108 @@ namespace OccupancyService.Repositories
     /// </summary>
     public class OccupancyRepository
     {
-        private static List<Occupancy> _occupancies = new List<Occupancy>();
+        private CloudTableClient _tableClient;
 
-        public IEnumerable<Occupancy> GetAll(List<long> roomIds, DateTime? fromTime = null, DateTime? toTime = null)
+        public OccupancyRepository()
         {
-            IEnumerable<Occupancy> occupancies = _occupancies;
-
-            if (roomIds != null && roomIds.Count > 0)
-            {
-                // Filter on given rooms
-                occupancies = occupancies.Where(x => roomIds.Contains(x.RoomId));
-            }
-
-            if (fromTime.HasValue)
-            {
-                // Filter on fromTime
-                occupancies = occupancies.Where(x => x.StartTime >= fromTime.Value);
-            }
-
-            if (toTime.HasValue)
-            {
-                // Filter on toTime
-                occupancies = occupancies.Where(x => x.StartTime <= toTime.Value);
-            }
-
-            // Sort on id, because why not
-            return occupancies.OrderBy(x => x.Id);
+            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(
+                CloudConfigurationManager.GetSetting("StorageConnectionString"));
+            _tableClient = storageAccount.CreateCloudTableClient();
         }
 
-        public Occupancy Get(long id)
+        public void DeleteTable()
         {
-            return _occupancies.FirstOrDefault(x => x.Id == id);
+            CloudTable table = _tableClient.GetTableReference("occupancies");
+            table.DeleteIfExists();
         }
 
-        public Occupancy GetLastOccupancy(long roomId)
+        public IEnumerable<OccupancyEntity> GetAll(long? roomId = null)
         {
-            return _occupancies.Last(x => x.RoomId == roomId);
-        }
+            CloudTable table = _tableClient.GetTableReference("occupancies");
+            table.CreateIfNotExists();
 
-        public Occupancy Insert(Occupancy occupancy)
-        {
-            occupancy.Id = _occupancies.Count > 0 ? _occupancies.Max(x => x.Id) + 1 : 1;
-            _occupancies.Add(occupancy);
-            return occupancy;
-        }
-        
-        public Occupancy Update(Occupancy occupancy)
-        {
-            if (_occupancies.All(x => x.Id != occupancy.Id))
+            // Get all occupancies
+            TableQuery<OccupancyEntity> query = new TableQuery<OccupancyEntity>();
+
+            // Filter on room if requested
+            if (roomId.HasValue)
             {
-                return null;
+                query = query.Where(
+                    TableQuery.GenerateFilterCondition(
+                        "PartitionKey",
+                        QueryComparisons.Equal,
+                        roomId.ToString()));
             }
-            _occupancies.RemoveAll(x => x.Id == occupancy.Id);
-            _occupancies.Add(occupancy);
-            return occupancy;
+
+            return table.ExecuteQuery(query);
+        }
+
+        public void DeleteAllInRoom(long roomId)
+        {
+            CloudTable table = _tableClient.GetTableReference("occupancies");
+            table.CreateIfNotExists();
+            
+            // Get all occupancies in room
+            TableQuery<OccupancyEntity> query =
+                new TableQuery<OccupancyEntity>().Where(
+                    TableQuery.GenerateFilterCondition(
+                        "PartitionKey",
+                        QueryComparisons.Equal,
+                        roomId.ToString()));
+            var occupancyEntities = table.ExecuteQuery(query);
+
+            // Delete entities
+            TableBatchOperation batchOperation = new TableBatchOperation();
+            foreach (var occupancyEntity in occupancyEntities)
+            {
+                batchOperation.Delete(occupancyEntity);
+            }
+            table.ExecuteBatch(batchOperation);
+        }
+
+        public OccupancyEntity GetLatestOccupancy(long roomId)
+        {
+            CloudTable table = _tableClient.GetTableReference("occupancies");
+            table.CreateIfNotExists();
+
+            // Get latest occupancy (it is the first record, since they are ordered by RowKey, which is a reversed timestamp)
+            TableQuery<OccupancyEntity> query =
+                new TableQuery<OccupancyEntity>()
+                    .Where(
+                        TableQuery.GenerateFilterCondition(
+                            "PartitionKey",
+                            QueryComparisons.Equal,
+                            roomId.ToString()))
+                    .Take(1);
+            return table.ExecuteQuery(query).FirstOrDefault();
+        }
+
+        public OccupancyEntity Insert(Occupancy occupancy)
+        {
+            CloudTable table = _tableClient.GetTableReference("occupancies");
+            table.CreateIfNotExists();
+
+            // Insert new occupancy
+            var occupancyEntity = new OccupancyEntity(occupancy.RoomId, DateTime.MaxValue.Ticks - DateTime.UtcNow.Ticks)
+            {
+                StartTime = occupancy.StartTime,
+                EndTime = occupancy.EndTime
+            };
+            TableOperation insertOperation = TableOperation.Insert(occupancyEntity);
+            table.Execute(insertOperation);
+            return occupancyEntity;
+        }
+
+        public OccupancyEntity Update(OccupancyEntity occupancyEntity)
+        {
+            CloudTable table = _tableClient.GetTableReference("occupancies");
+            table.CreateIfNotExists();
+
+            // Replace
+            TableOperation updateOperation = TableOperation.Replace(occupancyEntity);
+            table.Execute(updateOperation);
+
+            return occupancyEntity;
         }
     }
 }

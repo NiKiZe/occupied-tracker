@@ -2,50 +2,95 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Web;
+using Microsoft.Azure;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Table;
 using OccupancyService.Models;
+using OccupancyService.TableEntities;
 
 namespace OccupancyService.Repositories
 {
     public class RoomRepository
     {
-        private static List<Room> _rooms = new List<Room>();
+        private CloudTableClient _tableClient;
 
-        public IEnumerable<Room> GetAll(List<long> ids = null)
+        public RoomRepository()
         {
-            IEnumerable<Room> rooms = _rooms;
+            CloudStorageAccount storageAccount = CloudStorageAccount.Parse(
+                CloudConfigurationManager.GetSetting("StorageConnectionString"));
+            _tableClient = storageAccount.CreateCloudTableClient();
+        }
 
-            if (ids != null && ids.Count > 0)
+        public void DeleteTable()
+        {
+            CloudTable table = _tableClient.GetTableReference("rooms");
+            table.DeleteIfExists();
+        }
+
+        public IEnumerable<RoomEntity> GetAll()
+        {
+            CloudTable table = _tableClient.GetTableReference("rooms");
+            table.CreateIfNotExists();
+
+            // Get all rooms
+            TableQuery<RoomEntity> query = new TableQuery<RoomEntity>();
+            return table.ExecuteQuery(query);
+        }
+
+        public RoomEntity Get(long id)
+        {
+            CloudTable table = _tableClient.GetTableReference("rooms");
+            table.CreateIfNotExists();
+
+            // Get a single room
+            TableQuery<RoomEntity> query = new TableQuery<RoomEntity>().Where(TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, id.ToString()));
+            return table.ExecuteQuery(query).FirstOrDefault();
+        }
+
+        public RoomEntity Insert(Room room)
+        {
+            CloudTable table = _tableClient.GetTableReference("rooms");
+            table.CreateIfNotExists();
+
+            // Insert new room
+            var roomEntity = new RoomEntity(room.Id)
             {
-                // Filter on id
-                rooms = rooms.Where(x => ids.Contains(x.Id));
-            }
-
-            // Sort on id, because why not
-            return rooms.OrderBy(x => x.Id);
+                Description = room.Description
+            };
+            TableOperation insertOperation = TableOperation.Insert(roomEntity);
+            table.Execute(insertOperation);
+            return roomEntity;
         }
 
-        public Room Get(long id)
+        public RoomEntity Update(RoomEntity roomEntity)
         {
-            return _rooms.FirstOrDefault(x => x.Id == id);
+            CloudTable table = _tableClient.GetTableReference("rooms");
+            table.CreateIfNotExists();
+
+            // Replace
+            TableOperation updateOperation = TableOperation.Replace(roomEntity);
+            table.Execute(updateOperation);
+
+            return roomEntity;
         }
 
-        public Room Insert(NewRoom room)
+        public void Delete(long id)
         {
-            var roomDb = room.ToRoom();
-            roomDb.Id = _rooms.Count > 0 ? _rooms.Max(x => x.Id) + 1 : 1;
-            _rooms.Add(roomDb);
-            return roomDb;
-        }
+            CloudTable table = _tableClient.GetTableReference("rooms");
+            table.CreateIfNotExists();
 
-        public Room Update(Room room)
-        {
-            if (_rooms.All(x => x.Id != room.Id))
+            // Delete entry
+            TableOperation retrieveOperation = TableOperation.Retrieve<RoomEntity>("Rooms", id.ToString());
+            TableResult retrievedResult = table.Execute(retrieveOperation);
+            RoomEntity deleteEntity = (RoomEntity)retrievedResult.Result;
+
+            if (deleteEntity != null)
             {
-                return null;
+                TableOperation deleteOperation = TableOperation.Delete(deleteEntity);
+
+                // Execute the operation.
+                table.Execute(deleteOperation);
             }
-            _rooms.RemoveAll(x => x.Id == room.Id);
-            _rooms.Add(room);
-            return room;
         }
     }
 }

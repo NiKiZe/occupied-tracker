@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.WindowsAzure.Storage.Table;
 
 namespace OccupancyService.Models
 {
@@ -12,11 +13,6 @@ namespace OccupancyService.Models
     public class Occupancy
     {
         /// <summary>
-        /// The occupancy id
-        /// </summary>
-        public long Id { get; set; }
-
-        /// <summary>
         /// The room id
         /// </summary>
         public long RoomId { get; set; }
@@ -24,11 +20,11 @@ namespace OccupancyService.Models
         /// <summary>
         /// The time the room started to become occupied
         /// </summary>
-        public DateTimeOffset StartTime { get; set; }
+        public DateTime StartTime { get; set; }
 
         /// <summary>
         /// The time when the room became unoccupied again
         /// </summary>
-        public DateTimeOffset? EndTime { get; set; }
+        public DateTime? EndTime { get; set; }
     }
 }

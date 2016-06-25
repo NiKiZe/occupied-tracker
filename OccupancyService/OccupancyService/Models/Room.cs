@@ -11,7 +11,7 @@ namespace OccupancyService.Models
     public class Room
     {
         /// <summary>
-        /// Room id
+        /// Id of room
         /// </summary>
         public long Id { get; set; }
 

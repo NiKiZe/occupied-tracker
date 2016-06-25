@@ -18,6 +18,27 @@
             </remarks>
             <returns></returns>
         </member>
+        <member name="M:OccupancyService.Controllers.RoomsController.Post(OccupancyService.Models.Room,System.String)">
+            <summary>
+            Creates a new room
+            </summary>
+            <remarks>
+            Creates a new room
+            </remarks>
+            <param name="room">The room to create</param>
+            <param name="passcode">Passcode for this method</param>
+            <returns></returns>
+        </member>
+        <member name="M:OccupancyService.Controllers.RoomsController.Delete(System.String)">
+            <summary>
+            Delete all rooms
+            </summary>
+            <remarks>
+            Delete all rooms
+            </remarks>
+            <param name="passcode">Passcode for this method</param>
+            <returns></returns>
+        </member>
         <member name="M:OccupancyService.Controllers.RoomsController.Get(System.Int64)">
             <summary>
             Gets a single room
@@ -25,39 +46,52 @@
             <remarks>
             Gets a single room
             </remarks>
+            <param name="id">Room id</param>
             <returns></returns>
         </member>
-        <member name="M:OccupancyService.Controllers.RoomsController.Post(OccupancyService.Models.NewRoom)">
+        <member name="M:OccupancyService.Controllers.RoomsController.Delete(System.Int64,System.String)">
             <summary>
-            Creates a new room
+            Deletes a single room
             </summary>
             <remarks>
-            Creates a new room
+            Deletes a single room
             </remarks>
+            <param name="id">Room id</param>
+            <param name="passcode">Passcode for this method</param>
             <returns></returns>
         </member>
-        <member name="M:OccupancyService.Controllers.RoomsController.GetOccupancies(System.Collections.Generic.List{System.Int64},System.Nullable{System.DateTime},System.Nullable{System.DateTime})">
-            <summary>
-            Gets occupancy history of all rooms
-            </summary>
-            <remarks>
-            Gets occupancy history of all rooms
-            </remarks>
-            <param name="roomIds">Limit occupancies to these rooms</param>
-            <param name="fromTime">Limit occupancies to starttime after this time</param>
-            <param name="toTime">Limit occupancies to starttime before this time</param>
-            <returns></returns>
-        </member>
-        <member name="M:OccupancyService.Controllers.RoomsController.Put(System.Int64,OccupancyService.Models.Room)">
+        <member name="M:OccupancyService.Controllers.RoomsController.Put(System.Int64,OccupancyService.Models.Room,System.String)">
             <summary>
             Updates the given room
             </summary>
             <remarks>
             Updates the given room
             </remarks>
+            <param name="id">Room id</param>
+            <param name="room">The new properties for the room</param>
+            <param name="passcode">Passcode for this method</param>
             <returns></returns>
         </member>
-        <member name="M:OccupancyService.Controllers.RoomsController.GetOccupancy(System.Int64,System.Nullable{System.DateTime},System.Nullable{System.DateTime})">
+        <member name="M:OccupancyService.Controllers.RoomsController.GetOccupancies">
+            <summary>
+            Gets occupancy history of all rooms
+            </summary>
+            <remarks>
+            Gets occupancy history of all rooms
+            </remarks>
+            <returns></returns>
+        </member>
+        <member name="M:OccupancyService.Controllers.RoomsController.DeleteOccupancies(System.String)">
+            <summary>
+            Delete all occupancies
+            </summary>
+            <remarks>
+            Delete all occupancies
+            </remarks>
+            <param name="passcode">Passcode for this method</param>
+            <returns></returns>
+        </member>
+        <member name="M:OccupancyService.Controllers.RoomsController.GetOccupanciesForRoom(System.Int64)">
             <summary>
             Gets occupancy history of a single room
             </summary>
@@ -65,11 +99,9 @@
             Gets occupancy history of a single room
             </remarks>
             <param name="id">The room id</param>
-            <param name="fromTime">Limit occupancies to starttime after this time</param>
-            <param name="toTime">Limit occupancies to starttime before this time</param>
             <returns></returns>
         </member>
-        <member name="M:OccupancyService.Controllers.RoomsController.PostOccupancy(System.Int64,System.Boolean)">
+        <member name="M:OccupancyService.Controllers.RoomsController.PostOccupancy(System.Int64,System.Boolean,System.String)">
             <summary>
             Updates the status of a given room
             </summary>
@@ -78,14 +110,31 @@
             </remarks>
             <param name="id">The room id</param>
             <param name="isOccupied">Indicates if the room is currently occupied or not</param>
+            <param name="passcode">Passcode for this method</param>
             <returns></returns>
         </member>
-        <member name="T:OccupancyService.Models.NewRoom">
+        <member name="M:OccupancyService.Controllers.RoomsController.DeleteOccupanciesInRoom(System.Int64,System.String)">
+            <summary>
+            Delete all occupancies in a single room
+            </summary>
+            <remarks>
+            Delete all occupancies in a single room
+            </remarks>
+            <param name="id">The room id</param>
+            <param name="passcode">Passcode for this method</param>
+            <returns></returns>
+        </member>
+        <member name="T:OccupancyService.Models.Room">
             <summary>
             Represents a single room
             </summary>
         </member>
-        <member name="P:OccupancyService.Models.NewRoom.Description">
+        <member name="P:OccupancyService.Models.Room.Id">
+            <summary>
+            Id of room
+            </summary>
+        </member>
+        <member name="P:OccupancyService.Models.Room.Description">
             <summary>
             Name of room
             </summary>
@@ -93,11 +142,6 @@
         <member name="T:OccupancyService.Models.Occupancy">
             <summary>
             Represents a single occupancy
-            </summary>
-        </member>
-        <member name="P:OccupancyService.Models.Occupancy.Id">
-            <summary>
-            The occupancy id
             </summary>
         </member>
         <member name="P:OccupancyService.Models.Occupancy.RoomId">
@@ -113,21 +157,6 @@
         <member name="P:OccupancyService.Models.Occupancy.EndTime">
             <summary>
             The time when the room became unoccupied again
-            </summary>
-        </member>
-        <member name="T:OccupancyService.Models.Room">
-            <summary>
-            Represents a single room
-            </summary>
-        </member>
-        <member name="P:OccupancyService.Models.Room.Id">
-            <summary>
-            Room id
-            </summary>
-        </member>
-        <member name="P:OccupancyService.Models.Room.Description">
-            <summary>
-            Name of room
             </summary>
         </member>
         <member name="T:OccupancyService.Repositories.OccupancyRepository">
