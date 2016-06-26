@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Web;
 using Microsoft.Azure;
 using Microsoft.WindowsAzure.Storage;
@@ -25,16 +26,16 @@ namespace OccupancyService.Repositories
             _tableClient = storageAccount.CreateCloudTableClient();
         }
 
-        public void DeleteTable()
+        public async Task DeleteTable()
         {
             CloudTable table = _tableClient.GetTableReference("occupancies");
-            table.DeleteIfExists();
+            await table.DeleteIfExistsAsync();
         }
 
-        public IEnumerable<OccupancyEntity> GetAll(long? roomId = null)
+        public async Task<IEnumerable<OccupancyEntity>> GetAll(long? roomId = null)
         {
             CloudTable table = _tableClient.GetTableReference("occupancies");
-            table.CreateIfNotExists();
+            await table.CreateIfNotExistsAsync();
 
             // Get all occupancies
             TableQuery<OccupancyEntity> query = new TableQuery<OccupancyEntity>();
@@ -52,11 +53,11 @@ namespace OccupancyService.Repositories
             return table.ExecuteQuery(query);
         }
 
-        public void DeleteAllInRoom(long roomId)
+        public async Task DeleteAllInRoom(long roomId)
         {
             CloudTable table = _tableClient.GetTableReference("occupancies");
-            table.CreateIfNotExists();
-            
+            await table.CreateIfNotExistsAsync();
+
             // Get all occupancies in room
             TableQuery<OccupancyEntity> query =
                 new TableQuery<OccupancyEntity>().Where(
@@ -72,13 +73,13 @@ namespace OccupancyService.Repositories
             {
                 batchOperation.Delete(occupancyEntity);
             }
-            table.ExecuteBatch(batchOperation);
+            await table.ExecuteBatchAsync(batchOperation);
         }
 
-        public OccupancyEntity GetLatestOccupancy(long roomId)
+        public async Task<OccupancyEntity> GetLatestOccupancy(long roomId)
         {
             CloudTable table = _tableClient.GetTableReference("occupancies");
-            table.CreateIfNotExists();
+            await table.CreateIfNotExistsAsync();
 
             // Get latest occupancy (it is the first record, since they are ordered by RowKey, which is a reversed timestamp)
             TableQuery<OccupancyEntity> query =
@@ -92,10 +93,10 @@ namespace OccupancyService.Repositories
             return table.ExecuteQuery(query).FirstOrDefault();
         }
 
-        public OccupancyEntity Insert(Occupancy occupancy)
+        public async Task<OccupancyEntity> Insert(Occupancy occupancy)
         {
             CloudTable table = _tableClient.GetTableReference("occupancies");
-            table.CreateIfNotExists();
+            await table.CreateIfNotExistsAsync();
 
             // Insert new occupancy
             var occupancyEntity = new OccupancyEntity(occupancy.RoomId, DateTime.MaxValue.Ticks - DateTime.UtcNow.Ticks)
@@ -104,18 +105,18 @@ namespace OccupancyService.Repositories
                 EndTime = occupancy.EndTime
             };
             TableOperation insertOperation = TableOperation.Insert(occupancyEntity);
-            table.Execute(insertOperation);
+            await table.ExecuteAsync(insertOperation);
             return occupancyEntity;
         }
 
-        public OccupancyEntity Update(OccupancyEntity occupancyEntity)
+        public async Task<OccupancyEntity> Update(OccupancyEntity occupancyEntity)
         {
             CloudTable table = _tableClient.GetTableReference("occupancies");
-            table.CreateIfNotExists();
+            await table.CreateIfNotExistsAsync();
 
             // Replace
             TableOperation updateOperation = TableOperation.Replace(occupancyEntity);
-            table.Execute(updateOperation);
+            await table.ExecuteAsync(updateOperation);
 
             return occupancyEntity;
         }

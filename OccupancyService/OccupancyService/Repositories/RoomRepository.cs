@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Web;
 using Microsoft.Azure;
 using Microsoft.WindowsAzure.Storage;
@@ -21,36 +22,36 @@ namespace OccupancyService.Repositories
             _tableClient = storageAccount.CreateCloudTableClient();
         }
 
-        public void DeleteTable()
+        public async Task DeleteTable()
         {
             CloudTable table = _tableClient.GetTableReference("rooms");
-            table.DeleteIfExists();
+            await table.DeleteIfExistsAsync();
         }
 
-        public IEnumerable<RoomEntity> GetAll()
+        public async Task<IEnumerable<RoomEntity>> GetAll()
         {
             CloudTable table = _tableClient.GetTableReference("rooms");
-            table.CreateIfNotExists();
+            await table.CreateIfNotExistsAsync();
 
             // Get all rooms
             TableQuery<RoomEntity> query = new TableQuery<RoomEntity>();
             return table.ExecuteQuery(query);
         }
 
-        public RoomEntity Get(long id)
+        public async Task<RoomEntity> Get(long id)
         {
             CloudTable table = _tableClient.GetTableReference("rooms");
-            table.CreateIfNotExists();
+            await table.CreateIfNotExistsAsync();
 
             // Get a single room
             TableQuery<RoomEntity> query = new TableQuery<RoomEntity>().Where(TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, id.ToString()));
             return table.ExecuteQuery(query).FirstOrDefault();
         }
 
-        public RoomEntity Insert(Room room)
+        public async Task<RoomEntity> Insert(Room room)
         {
             CloudTable table = _tableClient.GetTableReference("rooms");
-            table.CreateIfNotExists();
+            await table.CreateIfNotExistsAsync();
 
             // Insert new room
             var roomEntity = new RoomEntity(room.Id)
@@ -59,30 +60,30 @@ namespace OccupancyService.Repositories
                 IsOccupied = room.IsOccupied
             };
             TableOperation insertOperation = TableOperation.Insert(roomEntity);
-            table.Execute(insertOperation);
+            await table.ExecuteAsync(insertOperation);
             return roomEntity;
         }
 
-        public RoomEntity Update(RoomEntity roomEntity)
+        public async Task<RoomEntity> Update(RoomEntity roomEntity)
         {
             CloudTable table = _tableClient.GetTableReference("rooms");
-            table.CreateIfNotExists();
+            await table.CreateIfNotExistsAsync();
 
             // Replace
             TableOperation updateOperation = TableOperation.Replace(roomEntity);
-            table.Execute(updateOperation);
+            await table.ExecuteAsync(updateOperation);
 
             return roomEntity;
         }
 
-        public void Delete(long id)
+        public async Task Delete(long id)
         {
             CloudTable table = _tableClient.GetTableReference("rooms");
-            table.CreateIfNotExists();
+            await table.CreateIfNotExistsAsync();
 
             // Delete entry
             TableOperation retrieveOperation = TableOperation.Retrieve<RoomEntity>("Rooms", id.ToString());
-            TableResult retrievedResult = table.Execute(retrieveOperation);
+            TableResult retrievedResult = await table.ExecuteAsync(retrieveOperation);
             RoomEntity deleteEntity = (RoomEntity)retrievedResult.Result;
 
             if (deleteEntity != null)
@@ -90,7 +91,7 @@ namespace OccupancyService.Repositories
                 TableOperation deleteOperation = TableOperation.Delete(deleteEntity);
 
                 // Execute the operation.
-                table.Execute(deleteOperation);
+                await table.ExecuteAsync(deleteOperation);
             }
         }
     }

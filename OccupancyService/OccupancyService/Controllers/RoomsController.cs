@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Security.Authentication;
+using System.Threading.Tasks;
 using System.Web;
 using System.Web.Http;
 using Microsoft.AspNet.SignalR;
@@ -29,10 +30,11 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("")]
         [HttpGet]
-        public IEnumerable<Room> Get()
+        public async Task<IEnumerable<Room>> Get()
         {
             var repository = new RoomRepository();
-            return repository.GetAll().Select(x => x.ToRoom());
+            var roomEntities = await repository.GetAll();
+            return roomEntities.Select(x => x.ToRoom());
         }
 
         /// <summary>
@@ -46,20 +48,21 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("")]
         [HttpPost]
-        public Room Post(RoomInsert room, string passcode = null)
+        public async Task<Room> Post(RoomInsert room, string passcode = null)
         {
             CheckPasscode(passcode);
 
             // Check if it is occupied (occupancies can has been created before the room)
             var occupancyRepository = new OccupancyRepository();
-            var latestOccupancy = occupancyRepository.GetLatestOccupancy(room.Id);
+            var latestOccupancy = await occupancyRepository.GetLatestOccupancy(room.Id);
             var isOccupied = latestOccupancy != null && !latestOccupancy.EndTime.HasValue;
 
             // Insert room
             var repository = new RoomRepository();
             var roomToInsert = room.ToRoom();
             roomToInsert.IsOccupied = isOccupied;
-            return repository.Insert(roomToInsert)?.ToRoom();
+            var insertedRoomEntity = await repository.Insert(roomToInsert);
+            return insertedRoomEntity?.ToRoom();
         }
 
         /// <summary>
@@ -72,12 +75,12 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("")]
         [HttpDelete]
-        public void Delete(string passcode = null)
+        public async Task Delete(string passcode = null)
         {
             CheckPasscode(passcode);
             
             var repository = new RoomRepository();
-            repository.DeleteTable();
+            await repository.DeleteTable();
         }
 
         /// <summary>
@@ -90,10 +93,11 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("{id}")]
         [HttpGet]
-        public Room Get(long id)
+        public async Task<Room> Get(long id)
         {
             var repository = new RoomRepository();
-            return repository.Get(id)?.ToRoom();
+            var roomEntity = await repository.Get(id);
+            return roomEntity?.ToRoom();
         }
 
         /// <summary>
@@ -107,12 +111,12 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("{id}")]
         [HttpDelete]
-        public void Delete(long id, string passcode = null)
+        public async Task Delete(long id, string passcode = null)
         {
             CheckPasscode(passcode);
 
             var repository = new RoomRepository();
-            repository.Delete(id);
+            await repository.Delete(id);
         }
 
         /// <summary>
@@ -127,13 +131,13 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("{id}")]
         [HttpPut]
-        public Room Put(long id, RoomUpdate roomUpdate, string passcode = null)
+        public async Task<Room> Put(long id, RoomUpdate roomUpdate, string passcode = null)
         {
             CheckPasscode(passcode);
 
             // Get old room version
             var repository = new RoomRepository();
-            var roomEntity = repository.Get(id);
+            var roomEntity = await repository.Get(id);
             if (roomEntity == null)
             {
                 throw new ArgumentException("Room not found");
@@ -143,12 +147,13 @@ namespace OccupancyService.Controllers
             var occupiedChanged = roomUpdate.IsOccupied.HasValue && roomUpdate.IsOccupied != roomEntity.IsOccupied;
             if (occupiedChanged)
             {
-                ChangeOccupancy(id, roomUpdate.IsOccupied.Value);
+                await ChangeOccupancy(id, roomUpdate.IsOccupied.Value);
             }
 
             // Save changes
             roomEntity.Update(roomUpdate);
-            return repository.Update(roomEntity)?.ToRoom();
+            var updatedRoomEntity = await repository.Update(roomEntity);
+            return updatedRoomEntity?.ToRoom();
         }
 
         /// <summary>
@@ -160,10 +165,11 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("Occupancies")]
         [HttpGet]
-        public IEnumerable<Occupancy> GetOccupancies()
+        public async Task<IEnumerable<Occupancy>> GetOccupancies()
         {
             var repository = new OccupancyRepository();
-            return repository.GetAll().Select(x => x.ToOccupancy());
+            var occupancyEntities = await repository.GetAll();
+            return occupancyEntities.Select(x => x.ToOccupancy());
         }
 
         /// <summary>
@@ -176,12 +182,12 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("Occupancies")]
         [HttpDelete]
-        public void DeleteOccupancies(string passcode = null)
+        public async Task DeleteOccupancies(string passcode = null)
         {
             CheckPasscode(passcode);
 
             var repository = new OccupancyRepository();
-            repository.DeleteTable();
+            await repository.DeleteTable();
         }
 
         /// <summary>
@@ -194,10 +200,11 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("{id}/Occupancies")]
         [HttpGet]
-        public IEnumerable<Occupancy> GetOccupanciesForRoom(long id)
+        public async Task<IEnumerable<Occupancy>> GetOccupanciesForRoom(long id)
         {
             var repository = new OccupancyRepository();
-            return repository.GetAll(id).Select(x => x.ToOccupancy());
+            var occupancyEntities = await repository.GetAll(id);
+            return occupancyEntities.Select(x => x.ToOccupancy());
         }
 
         /// <summary>
@@ -212,13 +219,13 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("{id}/Occupancies")]
         [HttpPost]
-        public Occupancy PostOccupancy(long id, bool isOccupied, string passcode = null)
+        public async Task<Occupancy> PostOccupancy(long id, bool isOccupied, string passcode = null)
         {
             CheckPasscode(passcode);
 
             // Get old room version if existing
             var repository = new RoomRepository();
-            var roomEntity = repository.Get(id);
+            var roomEntity = await repository.Get(id);
             if (roomEntity != null)
             {
                 // Update occupied if changed
@@ -226,12 +233,12 @@ namespace OccupancyService.Controllers
                 if (occupiedChanged)
                 {
                     roomEntity.IsOccupied = isOccupied;
-                    repository.Update(roomEntity);
+                    await repository.Update(roomEntity);
                 }
             }
 
             // Create/update occupancy
-            return ChangeOccupancy(id, isOccupied);
+            return await ChangeOccupancy(id, isOccupied);
         }
 
         /// <summary>
@@ -245,15 +252,15 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("{id}/Occupancies")]
         [HttpDelete]
-        public void DeleteOccupanciesInRoom(long id, string passcode = null)
+        public async Task DeleteOccupanciesInRoom(long id, string passcode = null)
         {
             CheckPasscode(passcode);
 
             var repository = new OccupancyRepository();
-            repository.DeleteAllInRoom(id);
+            await repository.DeleteAllInRoom(id);
         }
 
-        private Occupancy ChangeOccupancy(long roomId, bool isOccupied)
+        private async Task<Occupancy> ChangeOccupancy(long roomId, bool isOccupied)
         {
             // Send event on SignalR
             var context = GlobalHost.ConnectionManager.GetHubContext<OccupancyHub>();
@@ -269,14 +276,16 @@ namespace OccupancyService.Controllers
                     RoomId = roomId,
                     StartTime = DateTime.UtcNow
                 };
-                return repository.Insert(occupancy)?.ToOccupancy();
+                var insertedRoomEntity = await repository.Insert(occupancy);
+                return insertedRoomEntity?.ToOccupancy();
             }
             else
             {
                 // End the last occupancy
-                var occupancyEntity = repository.GetLatestOccupancy(roomId);
+                var occupancyEntity = await repository.GetLatestOccupancy(roomId);
                 occupancyEntity.EndTime = DateTime.UtcNow;
-                return repository.Update(occupancyEntity)?.ToOccupancy();
+                var updatedOccupancyEntity = await repository.Update(occupancyEntity);
+                return updatedOccupancyEntity?.ToOccupancy();
             }
         }
 
