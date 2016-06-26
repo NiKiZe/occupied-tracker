@@ -55,7 +55,8 @@ namespace OccupancyService.Repositories
             // Insert new room
             var roomEntity = new RoomEntity(room.Id)
             {
-                Description = room.Description
+                Description = room.Description,
+                IsOccupied = room.IsOccupied
             };
             TableOperation insertOperation = TableOperation.Insert(roomEntity);
             table.Execute(insertOperation);

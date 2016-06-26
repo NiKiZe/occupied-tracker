@@ -46,12 +46,20 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("")]
         [HttpPost]
-        public Room Post(Room room, string passcode = null)
+        public Room Post(RoomInsert room, string passcode = null)
         {
             CheckPasscode(passcode);
 
+            // Check if it is occupied (occupancies can has been created before the room)
+            var occupancyRepository = new OccupancyRepository();
+            var latestOccupancy = occupancyRepository.GetLatestOccupancy(room.Id);
+            var isOccupied = latestOccupancy != null && !latestOccupancy.EndTime.HasValue;
+
+            // Insert room
             var repository = new RoomRepository();
-            return repository.Insert(room)?.ToRoom();
+            var roomToInsert = room.ToRoom();
+            roomToInsert.IsOccupied = isOccupied;
+            return repository.Insert(roomToInsert)?.ToRoom();
         }
 
         /// <summary>
@@ -111,21 +119,35 @@ namespace OccupancyService.Controllers
         /// Updates the given room
         /// </summary>
         /// <remarks>
-        /// Updates the given room
+        /// Updates the given room. If IsOccupied is changed to true, a new Occupancy record will be created. If it is changed to false, the latest Occupancy record will get an EndTime.
         /// </remarks>
         /// <param name="id">Room id</param>
-        /// <param name="room">The new properties for the room</param>
+        /// <param name="roomUpdate">The new properties for the room</param>
         /// <param name="passcode">Passcode for this method</param>
         /// <returns></returns>
         [Route("{id}")]
         [HttpPut]
-        public Room Put(long id, Room room, string passcode = null)
+        public Room Put(long id, RoomUpdate roomUpdate, string passcode = null)
         {
             CheckPasscode(passcode);
 
+            // Get old room version
             var repository = new RoomRepository();
             var roomEntity = repository.Get(id);
-            roomEntity.Update(room);
+            if (roomEntity == null)
+            {
+                throw new ArgumentException("Room not found");
+            }
+
+            // Update occupied if changed
+            var occupiedChanged = roomUpdate.IsOccupied.HasValue && roomUpdate.IsOccupied != roomEntity.IsOccupied;
+            if (occupiedChanged)
+            {
+                ChangeOccupancy(id, roomUpdate.IsOccupied.Value);
+            }
+
+            // Save changes
+            roomEntity.Update(roomUpdate);
             return repository.Update(roomEntity)?.ToRoom();
         }
 
@@ -182,7 +204,7 @@ namespace OccupancyService.Controllers
         /// Updates the status of a given room
         /// </summary>
         /// <remarks>
-        /// Updates the status of a given room
+        /// Updates the status of a given room. If isOccupied is true, a new Occupancy record will be created. If it is false, the latest Occupancy record will get an EndTime.
         /// </remarks>
         /// <param name="id">The room id</param>
         /// <param name="isOccupied">Indicates if the room is currently occupied or not</param>
@@ -194,29 +216,22 @@ namespace OccupancyService.Controllers
         {
             CheckPasscode(passcode);
 
-            // Send event on SignalR
-            var context = GlobalHost.ConnectionManager.GetHubContext<OccupancyHub>();
-            context.Clients.All.occupancyChanged(id, isOccupied);
-
-            // Update DB
-            var repository = new OccupancyRepository();
-            if (isOccupied)
+            // Get old room version if existing
+            var repository = new RoomRepository();
+            var roomEntity = repository.Get(id);
+            if (roomEntity != null)
             {
-                // Create a new occupancy
-                var occupancy = new Occupancy
+                // Update occupied if changed
+                var occupiedChanged = isOccupied != roomEntity.IsOccupied;
+                if (occupiedChanged)
                 {
-                    RoomId = id,
-                    StartTime = DateTime.UtcNow
-                };
-                return repository.Insert(occupancy)?.ToOccupancy();
+                    roomEntity.IsOccupied = isOccupied;
+                    repository.Update(roomEntity);
+                }
             }
-            else
-            {
-                // End the last occupancy
-                var occupancyEntity = repository.GetLatestOccupancy(id);
-                occupancyEntity.EndTime = DateTime.UtcNow;
-                return repository.Update(occupancyEntity)?.ToOccupancy();
-            }
+
+            // Create/update occupancy
+            return ChangeOccupancy(id, isOccupied);
         }
 
         /// <summary>
@@ -236,6 +251,33 @@ namespace OccupancyService.Controllers
 
             var repository = new OccupancyRepository();
             repository.DeleteAllInRoom(id);
+        }
+
+        private Occupancy ChangeOccupancy(long roomId, bool isOccupied)
+        {
+            // Send event on SignalR
+            var context = GlobalHost.ConnectionManager.GetHubContext<OccupancyHub>();
+            context.Clients.All.occupancyChanged(roomId, isOccupied);
+
+            // Update DB
+            var repository = new OccupancyRepository();
+            if (isOccupied)
+            {
+                // Create a new occupancy
+                var occupancy = new Occupancy
+                {
+                    RoomId = roomId,
+                    StartTime = DateTime.UtcNow
+                };
+                return repository.Insert(occupancy)?.ToOccupancy();
+            }
+            else
+            {
+                // End the last occupancy
+                var occupancyEntity = repository.GetLatestOccupancy(roomId);
+                occupancyEntity.EndTime = DateTime.UtcNow;
+                return repository.Update(occupancyEntity)?.ToOccupancy();
+            }
         }
 
         private void CheckPasscode(string passcode)

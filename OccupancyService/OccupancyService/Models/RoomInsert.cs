@@ -8,7 +8,7 @@ namespace OccupancyService.Models
     /// <summary>
     /// Represents a single room
     /// </summary>
-    public class Room
+    public class RoomInsert
     {
         /// <summary>
         /// Id of room
@@ -20,9 +20,13 @@ namespace OccupancyService.Models
         /// </summary>
         public string Description { get; set; }
 
-        /// <summary>
-        /// Indicates if the room is currently occupied
-        /// </summary>
-        public bool IsOccupied { get; set; }
+        public Room ToRoom()
+        {
+            return new Room
+            {
+                Id = Id,
+                Description = Description
+            };
+        }
     }
 }

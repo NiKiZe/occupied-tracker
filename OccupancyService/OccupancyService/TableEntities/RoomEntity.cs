@@ -18,10 +18,20 @@ namespace OccupancyService.TableEntities
         public RoomEntity() { }
 
         public string Description { get; set; }
-        
-        public void Update(Room room)
+
+        public bool IsOccupied { get; set; }
+
+        public void Update(RoomUpdate roomUpdate)
         {
-            Description = room.Description;
+            if (roomUpdate.Description != null)
+            {
+                Description = roomUpdate.Description;
+            }
+
+            if (roomUpdate.IsOccupied.HasValue)
+            {
+                IsOccupied = roomUpdate.IsOccupied.Value;
+            }
         }
 
         public Room ToRoom()
@@ -29,7 +39,8 @@ namespace OccupancyService.TableEntities
             return new Room
             {
                 Id = long.Parse(RowKey),
-                Description = Description
+                Description = Description,
+                IsOccupied = IsOccupied
             };
         }
     }
