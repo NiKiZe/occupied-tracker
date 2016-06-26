@@ -24,8 +24,24 @@ $.get("Rooms")
       viewModel.rooms(data);
 
       // Start the connection.
-      $.connection.hub.start().done(function () {
-          viewModel.connectionStatus("Connected");
+      $.connection.hub.start()
+          .done(function () {
+              viewModel.connectionStatus("Connected");
+          })
+          .fail(function () {
+              viewModel.connectionStatus("Could not connect");
+          });
+      $.connection.hub.connectionSlow(function () {
+          viewModel.connectionStatus("Slow connection");
+      });
+      $.connection.hub.reconnecting(function () {
+          viewModel.connectionStatus("Reconnecting...");
+      });
+      $.connection.hub.reconnected(function () {
+          viewModel.connectionStatus("Reconnected");
+      });
+      $.connection.hub.disconnected(function () {
+          viewModel.connectionStatus("Disconnected");
       });
   })
   .fail(function () {
