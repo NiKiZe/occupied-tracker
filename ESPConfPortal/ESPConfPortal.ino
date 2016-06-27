@@ -87,8 +87,6 @@ time_t getNtpTime()
   Serial.print(millis());
   Serial.print(" Local ntp port: ");
   Serial.print(ntpUdp.localPort());
-  //setSyncProvider(getNtpTime);
-  //setSyncInterval(300);
 
   while (ntpUdp.parsePacket() > 0) ; // discard any previously received packets
   Serial.print(" NTP Request ");
@@ -374,10 +372,10 @@ void setup() {
   http.begin();
   DBG_OUTPUT_PORT.println("HTTP server started");
   setSyncProvider(getNtpTime);
+  setSyncInterval(30 * 60);
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
   http.handleClient();
   ArduinoOTA.handle();
 }
