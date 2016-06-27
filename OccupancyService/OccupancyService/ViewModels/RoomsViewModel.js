@@ -1,6 +1,7 @@
 ﻿function RoomsViewModel() {
     this.rooms = ko.observableArray([]);
-    this.connectionStatus = ko.observable("Connecting...");
+    this.connectionStatusText = ko.observable("Connecting...");
+    this.connectionStatusClass = ko.observable("label-default");
 }
 
 var viewModel = new RoomsViewModel();
@@ -26,24 +27,30 @@ $.get("Rooms")
       // Start the connection.
       $.connection.hub.start()
           .done(function () {
-              viewModel.connectionStatus("Connected");
+              viewModel.connectionStatusText("Connected");
+              viewModel.connectionStatusClass("label-success");
           })
           .fail(function () {
-              viewModel.connectionStatus("Could not connect");
+              viewModel.connectionStatusText("Could not connect");
+              viewModel.connectionStatusClass("label-danger");
           });
       $.connection.hub.connectionSlow(function () {
-          viewModel.connectionStatus("Slow connection");
+          viewModel.connectionStatusText("Slow connection");
+          viewModel.connectionStatusClass("label-warning");
       });
       $.connection.hub.reconnecting(function () {
-          viewModel.connectionStatus("Reconnecting...");
+          viewModel.connectionStatusText("Reconnecting...");
+          viewModel.connectionStatusClass("label-warning");
       });
       $.connection.hub.reconnected(function () {
-          viewModel.connectionStatus("Reconnected");
+          viewModel.connectionStatusText("Reconnected");
+          viewModel.connectionStatusClass("label-success");
       });
       $.connection.hub.disconnected(function () {
-          viewModel.connectionStatus("Disconnected");
+          viewModel.connectionStatusText("Disconnected");
+          viewModel.connectionStatusClass("label-danger");
       });
   })
   .fail(function () {
-      viewModel.connectionStatus("No response from server");
+      viewModel.connectionStatusText("No response from server");
   });

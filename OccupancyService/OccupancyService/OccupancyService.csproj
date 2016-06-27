@@ -158,14 +158,25 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Documentation\OccupancyService.XML" />
+    <Content Include="Fonts\glyphicons-halflings-regular.svg" />
     <Content Include="index.html" />
-    <Content Include="index.js" />
     <Content Include="packages.config" />
+    <Content Include="Scripts\bootstrap.js" />
+    <Content Include="Scripts\bootstrap.min.js" />
     <Content Include="Scripts\jquery-1.10.2.min.map" />
+    <Content Include="Fonts\glyphicons-halflings-regular.eot" />
+    <Content Include="Fonts\glyphicons-halflings-regular.ttf" />
+    <Content Include="Fonts\glyphicons-halflings-regular.woff" />
+    <Content Include="Fonts\glyphicons-halflings-regular.woff2" />
     <None Include="Properties\PublishProfiles\caspecowatchdog - FTP.pubxml" />
     <None Include="Properties\PublishProfiles\caspecowatchdog - Web Deploy.pubxml">
       <SubType>Designer</SubType>
     </None>
+    <Content Include="Scripts\npm.js" />
+    <Content Include="Styles\bootstrap-theme.css.map" />
+    <Content Include="Styles\bootstrap-theme.min.css.map" />
+    <Content Include="Styles\bootstrap.css.map" />
+    <Content Include="Styles\bootstrap.min.css.map" />
     <None Include="Web.Debug.config">
       <DependentUpon>Web.config</DependentUpon>
     </None>
@@ -180,10 +191,15 @@
     <Content Include="Scripts\jquery.signalR-2.1.2.js" />
     <Content Include="Scripts\jquery.signalR-2.1.2.min.js" />
     <Content Include="Scripts\knockout-3.4.0.js" />
-    <Content Include="styles.css" />
+    <Content Include="Styles\bootstrap-theme.css" />
+    <Content Include="Styles\bootstrap-theme.min.css" />
+    <Content Include="Styles\bootstrap.css" />
+    <Content Include="Styles\bootstrap.min.css" />
+    <Content Include="Styles\styles.css" />
     <Content Include="favicon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="ViewModels\RoomsViewModel.js" />
     <Content Include="Web.config">
       <SubType>Designer</SubType>
     </Content>
