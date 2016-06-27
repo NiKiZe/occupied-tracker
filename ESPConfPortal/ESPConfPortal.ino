@@ -1,3 +1,20 @@
+/*  ESP8266-01 layout
+ *  Loc. Ant.
+ *  |        GIO3      RX  o o  VCC
+ *  =  +     FL_EN   GIO0  o o  GIO16   RST (timer connected to reset)
+ *  =  |     TX      GIO2  o o  CH_PD
+ *  =--+              GND  o o  TX      GIO1
+ *
+ *  GPIO0 is pulled low on boot to enable serial firmware update.
+ *
+ *  Use GIO0 as Pixel output (add resistor), that way no pull down is active on boot(?)
+ *  If TX is moved to GIO2, then GIO1 can be used as input
+ *  on the other hand so can GIO2? (check more on the UART usage?)
+ *
+ *  Inputs available:
+ *  GIO1/2 & GIO3
+ */
+
 #include <Arduino.h>
 #include <ESP8266WiFi.h>          //https://github.com/esp8266/Arduino
 
@@ -16,7 +33,7 @@
 #include <avr/power.h>
 #endif
 
-#define NEOPXPIN       2
+#define NEOPXPIN       0
 #define NUMPIXELS      8
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, NEOPXPIN, NEO_GRB + NEO_KHZ800);
 
