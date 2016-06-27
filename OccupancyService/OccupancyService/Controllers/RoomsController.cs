@@ -55,12 +55,17 @@ namespace OccupancyService.Controllers
             // Check if it is occupied (occupancies can has been created before the room)
             var occupancyRepository = new OccupancyRepository();
             var latestOccupancy = await occupancyRepository.GetLatestOccupancy(room.Id);
+            var latestOccupancyChangedTime =
+                latestOccupancy != null
+                    ? (latestOccupancy.EndTime ?? latestOccupancy.StartTime) // Last time occupancy changed
+                    : DateTime.Now; // It started being available now
             var isOccupied = latestOccupancy != null && !latestOccupancy.EndTime.HasValue;
 
             // Insert room
             var repository = new RoomRepository();
             var roomToInsert = room.ToRoom();
             roomToInsert.IsOccupied = isOccupied;
+            roomToInsert.LatestOccupancyChangedTime = latestOccupancyChangedTime;
             var insertedRoomEntity = await repository.Insert(roomToInsert);
             return insertedRoomEntity?.ToRoom();
         }
@@ -147,6 +152,7 @@ namespace OccupancyService.Controllers
             var occupiedChanged = roomUpdate.IsOccupied.HasValue && roomUpdate.IsOccupied != roomEntity.IsOccupied;
             if (occupiedChanged)
             {
+                roomEntity.LatestOccupancyChangedTime = DateTime.Now;
                 await ChangeOccupancy(id, roomUpdate.IsOccupied.Value);
             }
 
@@ -233,6 +239,7 @@ namespace OccupancyService.Controllers
                 if (occupiedChanged)
                 {
                     roomEntity.IsOccupied = isOccupied;
+                    roomEntity.LatestOccupancyChangedTime = DateTime.Now;
                     await repository.Update(roomEntity);
                 }
             }

@@ -57,7 +57,8 @@ namespace OccupancyService.Repositories
             var roomEntity = new RoomEntity(room.Id)
             {
                 Description = room.Description,
-                IsOccupied = room.IsOccupied
+                IsOccupied = room.IsOccupied,
+                LatestOccupancyChangedTime = room.LatestOccupancyChangedTime
             };
             TableOperation insertOperation = TableOperation.Insert(roomEntity);
             await table.ExecuteAsync(insertOperation);

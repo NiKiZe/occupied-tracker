@@ -20,6 +20,8 @@ namespace OccupancyService.TableEntities
         public string Description { get; set; }
 
         public bool IsOccupied { get; set; }
+        
+        public DateTime LatestOccupancyChangedTime { get; set; }
 
         public void Update(RoomUpdate roomUpdate)
         {
@@ -40,7 +42,8 @@ namespace OccupancyService.TableEntities
             {
                 Id = long.Parse(RowKey),
                 Description = Description,
-                IsOccupied = IsOccupied
+                IsOccupied = IsOccupied,
+                LatestOccupancyChangedTime = LatestOccupancyChangedTime
             };
         }
     }

@@ -24,5 +24,10 @@ namespace OccupancyService.Models
         /// Indicates if the room is currently occupied
         /// </summary>
         public bool IsOccupied { get; set; }
+
+        /// <summary>
+        /// Indicates when occupancy was last changed
+        /// </summary>
+        public DateTime LatestOccupancyChangedTime { get; set; }
     }
 }
