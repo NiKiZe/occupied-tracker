@@ -44,7 +44,8 @@ const int delayval = 200;  // Delay for a period of time (in milliseconds).
 unsigned long timeChanged = 0;
 #define NUMPINS 2
 const int toaPins[NUMPINS] = {2, 3};
-bool prevState[NUMPINS] = {HIGH, HIGH};
+bool prevState[NUMPINS];
+time_t lastStateChange[NUMPINS];
 // 3 hours in millis
 const unsigned long TIMEOUT = (3 * 60 * 60 * 1000L);
 /* --- /toa --- */
@@ -301,17 +302,29 @@ void setupHttp() {
   http.on("/all", HTTP_GET, [](){
     pixels.setPixelColor(7, pixels.Color(0,16,0));
     pixels.show();
+    time_t cnow = now();
     String json = "{";
     json += "\"heap\":"+String(ESP.getFreeHeap());
     json += ",\n \"analog\":"+String(analogRead(A0));
     json += ",\n \"gpio\":"+String((uint32_t)(((GPI | GPO) & 0xFFFF) | ((GP16I & 0x01) << 16)), HEX);
     json += ",\n \"millis\":\""+String(millis())+"\"";
     json += ",\n \"time\":\""+timeString()+"\"";
+    json += ",\n \"unix\":\""+String(cnow)+"\"";
 
     // https://github.com/esp8266/Arduino/blob/master/cores/esp8266/Esp.cpp#L364
     json += ",\n \"resetreason_nr\":"+String(ESP.getResetInfoPtr()->reason);
     json += ",\n \"resetreason\":"+ESP.getResetReason();
     json += ",\n \"resetinfo\":\""+ESP.getResetInfo()+"\"";
+
+    json += ",\n \"rooms\":[";
+    for (int i = 0; i < NUMPINS; i++) {
+      if (i > 0) json += ",";
+      json += "[" + String(i) + "," + String(toaPins[i]) + "," +
+        String(prevState[i]) + "," + String(lastStateChange[i]) + "," +
+        String(cnow - lastStateChange[i]) + "]";
+    }
+    json += "]";
+
     json += "}";
     http.send(200, "text/json", json);
     json = String();
@@ -386,8 +399,11 @@ void setup() {
   /* --- toa ---- */
   // Ensure we are note used to something else
   //pinMode(3, FUNCTION3);
-  for (int i = 0; i < NUMPINS; i++)
+  for (int i = 0; i < NUMPINS; i++) {
     pinMode(toaPins[i], INPUT_PULLUP);
+    prevState[i] = HIGH;
+    lastStateChange[i] = 0;
+  }
   /* --- /toa --- */
 }
 
@@ -411,6 +427,7 @@ bool checkInput() {
       // state changed      
       timeChanged = currentTime;
       prevState[i] = toa[i];
+      lastStateChange[i] = now();
     }
   }
 
