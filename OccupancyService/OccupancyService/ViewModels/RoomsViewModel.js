@@ -53,4 +53,5 @@ $.get("Rooms")
   })
   .fail(function () {
       viewModel.connectionStatusText("No response from server");
+      viewModel.connectionStatusClass("label-danger");
   });
