@@ -82,7 +82,7 @@ void OTASetup() {
   // ArduinoOTA.setHostname("myesp8266");
 
   // No authentication by default
-  ArduinoOTA.setPassword((const char *)"update");
+  ArduinoOTA.setPassword(update_password);
 
   ArduinoOTA.onStart([]() {
     Serial.println("OTA Start");
@@ -115,7 +115,9 @@ bool loadPixelData() {
   uint32_t i = 0;
   while(f.available() >=3 && i < NUMPIXELS) {
     uint32_t c = pixels.Color(f.read(), f.read(), f.read());
-    Serial.println(c, HEX);
+    char out[8];
+    sprintf(out, "%06x\n", c);
+    Serial.print(out);
     pixels.setPixelColor(i, c);
     i++;
   }
@@ -131,7 +133,9 @@ bool savePixelData() {
   Serial.print("Saving pixeldata to file ... ");
   for (uint32_t i = 0; i < NUMPIXELS; i++) {
     uint32_t c = pixels.getPixelColor(i);
-    Serial.println(c, HEX);
+    char out[8];
+    sprintf(out, "%06x\n", c);
+    Serial.print(out);
     f.write((byte)(c >>  8)); // r
     f.write((byte)(c >> 16)); // g
     f.write((byte)(c >>  0)); // b
@@ -140,22 +144,15 @@ bool savePixelData() {
   return true;
 }
 
-void setup() {
-  // put your setup code here, to run once:
-  Serial.begin(115200);
-
-  WiFi.printDiag(Serial);
-  
-  //WiFiManager
+void setupWifi() {
   //Local intialization. Once its business is done, there is no need to keep it around
   WiFiManager wifiManager;
-  //reset settings - for testing TODO add a button or something for this! (maybe check if reboot was done by reset)
-  //wifiManager.resetSettings();
+  //reset settings - if reboot was done by external reset then reset settings GPIO16/RST pin
+  //if (ESP.getResetInfoPtr()->reason == REASON_EXT_SYS_RST)
+  //  wifiManager.resetSettings();
 
   //set callback that gets called when connecting to previous WiFi fails, and enters Access Point mode
   wifiManager.setAPCallback(configModeCallback);
-
-  Serial.printf("Connecting to last saved %s\n", WiFi.SSID().c_str());
   
   //fetches ssid and pass and tries to connect
   //if it does not connect it starts an access point
@@ -164,6 +161,68 @@ void setup() {
     Serial.println("failed to connect and hit timeout");
     // todo schedule retry
   } 
+}
+
+void setupHttp() {
+  http.on("/", HTTP_GET, [](){
+    http.send(200, "text/html", "result");
+  });
+  //list directory
+  http.on("/list", HTTP_GET, handleFileList);
+  //called when the url is not defined here
+  //use it to load content from SPIFFS
+  http.onNotFound([](){
+    pixels.setPixelColor(7, pixels.Color(64,0,0));
+    pixels.show();
+    http.send(404, "text/plain", "FileNotFound " + http.uri());
+  });
+
+  //get heap status, analog input value and all GPIO statuses in one json call
+  http.on("/all", HTTP_GET, [](){
+    pixels.setPixelColor(7, pixels.Color(0,16,0));
+    pixels.show();
+    String json = "{";
+    json += "\"heap\":"+String(ESP.getFreeHeap());
+    json += ",\n \"analog\":"+String(analogRead(A0));
+    json += ",\n \"gpio\":"+String((uint32_t)(((GPI | GPO) & 0xFFFF) | ((GP16I & 0x01) << 16)), HEX);
+    json += ",\n \"time\":\""+timeString()+"\"";
+
+    // https://github.com/esp8266/Arduino/blob/master/cores/esp8266/Esp.cpp#L364
+    json += ",\n \"resetreason_nr\":"+String(ESP.getResetInfoPtr()->reason);
+    json += ",\n \"resetreason\":"+ESP.getResetReason();
+    json += ",\n \"resetinfo\":\""+ESP.getResetInfo()+"\"";
+    json += "}";
+    http.send(200, "text/json", json);
+    json = String();
+  });
+
+  http.on("/px", HTTP_GET, [](){
+    int r = http.arg("r").toInt();
+    int g = http.arg("g").toInt();
+    int b = http.arg("b").toInt();
+    pixels.setPixelColor(http.arg("px").toInt(),
+        pixels.Color(r,g,b));
+    pixels.show();
+    char out[7];
+    sprintf(out, "%02x%02x%02x", r, g, b);
+    http.send(200, "text/html", "<body bgcolor=#" + String(out) + " />");
+  });
+
+  http.on("/save", HTTP_GET, [](){
+    //SPIFFS.end();
+    http.send(savePixelData() ? 200 : 500, "text/plain", "");
+  });
+
+}
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(115200);
+
+  WiFi.printDiag(Serial);
+  Serial.printf("Connecting to last saved %s\n", WiFi.SSID().c_str());
+
+  setupWifi();
   
   Serial.print("Free sketch size: ");
   Serial.println((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000);
@@ -189,46 +248,7 @@ void setup() {
   DBG_OUTPUT_PORT.print("Connected! IP address: ");
   DBG_OUTPUT_PORT.println(WiFi.localIP());
   
-  //SERVER INIT
-  http.on("/", HTTP_GET, [](){
-    http.send(200, "text/html", "result");
-  });
-  //list directory
-  http.on("/list", HTTP_GET, handleFileList);
-  //called when the url is not defined here
-  //use it to load content from SPIFFS
-  http.onNotFound([](){
-    pixels.setPixelColor(7, pixels.Color(64,0,0));
-    pixels.show();
-    http.send(404, "text/plain", "FileNotFound " + http.uri());
-  });
-
-  //get heap status, analog input value and all GPIO statuses in one json call
-  http.on("/all", HTTP_GET, [](){
-    pixels.setPixelColor(7, pixels.Color(0,16,0));
-    pixels.show();
-    String json = "{";
-    json += "\"heap\":"+String(ESP.getFreeHeap());
-    json += ", \"analog\":"+String(analogRead(A0));
-    json += ", \"gpio\":"+String((uint32_t)(((GPI | GPO) & 0xFFFF) | ((GP16I & 0x01) << 16)), HEX);
-    json += "}";
-    http.send(200, "text/json", json);
-    json = String();
-  });
-
-  http.on("/px", HTTP_GET, [](){
-    pixels.setPixelColor(http.arg("px").toInt(),
-        pixels.Color(http.arg("r").toInt(),
-                     http.arg("g").toInt(),
-                     http.arg("b").toInt()));
-    pixels.show();
-    http.send(200, "text/plain", "");
-  });
-
-  http.on("/save", HTTP_GET, [](){
-    //SPIFFS.end();
-    http.send(savePixelData() ? 200 : 500, "text/plain", "");
-  });
+  setupHttp();
 
   OTASetup();
   httpUpdater.setup(&http, update_path, update_username, update_password);
