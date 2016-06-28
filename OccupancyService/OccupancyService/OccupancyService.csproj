@@ -199,7 +199,7 @@
     <Content Include="favicon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="ViewModels\RoomsViewModel.js" />
+    <Content Include="index.js" />
     <Content Include="Web.config">
       <SubType>Designer</SubType>
     </Content>
@@ -219,7 +219,9 @@
     <Compile Include="TableEntities\OccupancyEntity.cs" />
     <Compile Include="TableEntities\RoomEntity.cs" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <Folder Include="ViewModels\" />
+  </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>
     <VSToolsPath Condition="'$(VSToolsPath)' == ''">$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)</VSToolsPath>

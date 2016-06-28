@@ -18,7 +18,7 @@
 <script src="Scripts/bootstrap.min.js"></script>
 <div class="container">
     <nav class="navbar navbar-default navbar-fixed-top">
-        <div class="container-fluid">
+        <div class="container">
             <div class="navbar-header">
                 <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#occupancyNavbarCollapse">
                     <span class="sr-only">Toggle navigation</span>
@@ -30,7 +30,7 @@
             </div>
             <div class="collapse navbar-collapse" id="occupancyNavbarCollapse">
                 <ul class="nav navbar-nav">
-                    <li><a href="/swagger">API Docs</a></li>
+                    <li><a href="/swagger" target="_blank">API Docs</a></li>
                     <li><a>Status: <span class="label" data-bind="text: connectionStatusText, css: connectionStatusClass"></span></a></li>
                 </ul>
             </div>
@@ -43,6 +43,6 @@
     </div>
 </div>
     <script src="signalr/hubs"></script>
-    <script src="ViewModels/RoomsViewModel.js"></script>
+    <script src="index.js"></script>
 </body>
 </html>
