@@ -30,6 +30,8 @@
 #include <ArduinoOTA.h>
 #include <ESP8266HTTPUpdateServer.h>
 
+#include <ESP8266HTTPClient.h>
+
 #include <Adafruit_NeoPixel.h>
 #ifdef __AVR__
 #include <avr/power.h>
@@ -46,8 +48,10 @@ unsigned long timeChanged = 0;
 const int toaPins[NUMPINS] = {2, 3};
 bool prevState[NUMPINS];
 time_t lastStateChange[NUMPINS];
+uint32_t idxToRoomMap[NUMPINS];
 // 3 hours in millis
 const unsigned long TIMEOUT = (3 * 60 * 60 * 1000L);
+String passcode;
 /* --- /toa --- */
 
 ESP8266WebServer http(80);
@@ -213,6 +217,66 @@ void OTASetup() {
 }
 
 
+bool loadRoomMap() {
+  if (!SPIFFS.exists("/roommap"))
+    return false;
+  File f = SPIFFS.open("/roommap", "r");
+  if (!f)    
+    return false;
+  Serial.print(String(millis()) + " Loading roomMap from file ... ");
+  const uint32_t _s = sizeof(uint32_t);
+  uint32_t i = 0;
+  while((uint32_t)f.available() >= _s && i < NUMPINS) {
+    uint8_t out[_s];
+    f.readBytes((char *) out, _s);
+    idxToRoomMap[i] = (uint32_t) out; //out[0] | (out[1] << 8) | (out[2] << 16) | (out[3] << 24);
+    Serial.print(String(i) + " : " + String(idxToRoomMap[i]) + ", ");
+    i++;
+  }
+  f.close();
+  Serial.println(" " + String(millis()) + " Done");
+  return true;
+}
+bool saveRoomMap() {
+  File f = SPIFFS.open("/roommap", "w");
+  if (!f)    
+    return false;
+  Serial.print(String(millis()) + " Saving roomMap to file ... ");
+  for (uint32_t i = 0; i < NUMPINS; i++) {
+    Serial.print(String(i) + " : " + String(idxToRoomMap[i]) + ", ");
+    f.write(idxToRoomMap[i]);
+  }
+  f.close();
+  Serial.println(" Done");
+  return true;
+}
+
+
+bool loadPasscode() {
+  if (!SPIFFS.exists("/passcode"))
+    return false;
+  File f = SPIFFS.open("/passcode", "r");
+  if (!f)    
+    return false;
+  Serial.print(String(millis()) + " Loading passcode from file ... ");
+  passcode = f.readStringUntil('\n');
+  passcode.replace("\n", "");
+  f.close();
+  Serial.println(passcode + " Done");
+  return true;
+}
+bool savePasscode() {
+  File f = SPIFFS.open("/passcode", "w");
+  if (!f)    
+    return false;
+  Serial.print(String(millis()) + " Saving passcode " + passcode + " to file ... ");
+  f.print(passcode + "\n");
+  f.close();
+  Serial.println(" Done");
+  return true;
+}
+
+
 bool loadPixelData() {
   if (!SPIFFS.exists("/pixelstate"))
     return false;
@@ -318,6 +382,7 @@ void setupHttp() {
     for (int i = 0; i < NUMPINS; i++) {
       if (i > 0) json += ",";
       json += "[" + String(i) + "," + String(toaPins[i]) + "," +
+        String(idxToRoomMap[i]) + "," +
         String(prevState[i]) + "," + String(lastStateChange[i]) + "," +
         String(cnow - lastStateChange[i]) + "]";
     }
@@ -328,6 +393,32 @@ void setupHttp() {
     json = String();
   });
 
+  http.on("/set", HTTP_GET, [](){
+    String result;
+    String _passcode = http.arg("passcode");
+    _passcode.trim();
+    if(_passcode.length() > 0) {
+      passcode = _passcode;
+      result += "Passcode changed new length " + String(passcode.length()) + "\n";
+    }
+
+    int _idx = http.arg("idx").toInt();
+    int _id = http.arg("id").toInt();
+    if (0 <= _idx && _idx < NUMPINS && _id > 0) {
+      result += "Updating room id for index " + String(_idx) + " from old " + String(idxToRoomMap[_idx]) + " to new " + String(_id) + "\n";
+      idxToRoomMap[_idx] = _id;
+    }
+    if(result.length() == 0) {
+      http.send(500, "text/html", "No params given<br>"
+        "use ?passcode= to change passcode<br>"
+        "use ?idx=n&id=n to change the external id for internal pins<br>"
+        "visit /save/passcode and /save/roommap respectively to actually save changes to persistent storage<br>");
+      return;
+    }
+    
+    Serial.print(String(millis()) + " " + result);
+    http.send(200, "text/plain", result);
+  });
   http.on("/px", HTTP_GET, [](){
     int r = http.arg("r").toInt();
     int g = http.arg("g").toInt();
@@ -340,6 +431,12 @@ void setupHttp() {
     http.send(200, "text/html", "<body bgcolor=#" + String(out) + " />");
   });
 
+  http.on("/save/roommap", HTTP_GET, [](){
+    http.send(saveRoomMap() ? 200 : 500, "text/plain", "");
+  });
+  http.on("/save/passcode", HTTP_GET, [](){
+    http.send(savePasscode() ? 200 : 500, "text/plain", "");
+  });
   http.on("/save/px", HTTP_GET, [](){
     http.send(savePixelData() ? 200 : 500, "text/plain", "");
   });
@@ -395,14 +492,37 @@ void setup() {
   setSyncInterval(30 * 60);
 
   /* --- toa ---- */
+  Serial.print(String(millis()));
+  uint32_t roombase = (ESP.getChipId() & 0xffffff) << 8;
+  Serial.printf(" roombase: %08x\n", roombase);
   // Ensure we are not used to something else
   //pinMode(3, FUNCTION3);
   for (int i = 0; i < NUMPINS; i++) {
     pinMode(toaPins[i], INPUT_PULLUP);
     prevState[i] = HIGH;
     lastStateChange[i] = 0;
+    // predefine room map just in case
+    idxToRoomMap[i] = roombase + i + 1;
+    Serial.print(String(i) + " : " + String(idxToRoomMap[i]));
+    Serial.printf(" %08x\n", idxToRoomMap[i]);
   }
+  loadRoomMap();
+  loadPasscode();
   /* --- /toa --- */
+}
+
+void postRoomChange(int room, bool freeState) {
+  // TODO schedule retry if there is any failure
+  HTTPClient http;
+  String url = "http://caspecooccupancy.azurewebsites.net/Rooms/" + String(room) +
+    "/Occupancies?isOccupied=" + (freeState ? "false" : "true") + "&passcode=" + passcode;
+  Serial.println(String(millis()) + " start http post " + url);
+  http.begin(url);
+  http.addHeader("Content-Type", "application/json");
+  int result = http.POST("empty");
+  Serial.println(String(millis()) + " http post result " + String(result));
+  http.writeToStream(&Serial);
+  http.end();
 }
 
 bool checkInput() {
@@ -426,6 +546,7 @@ bool checkInput() {
       timeChanged = currentTime;
       prevState[i] = isFreeState[i];
       lastStateChange[i] = now();
+      postRoomChange(idxToRoomMap[i], isFreeState[i]);
     }
   }
 
