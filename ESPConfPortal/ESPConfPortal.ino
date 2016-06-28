@@ -190,17 +190,19 @@ void OTASetup() {
   ArduinoOTA.setPassword(update_password);
 
   ArduinoOTA.onStart([]() {
-    Serial.println("OTA Start");
+    Serial.println(String(millis()) + " OTA Start");
   });
   ArduinoOTA.onEnd([]() {
-    Serial.println("\nOTA End");
+    Serial.println(String(millis()) + " \nOTA End");
     SPIFFS.end();
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("OTA Progress: %u%%\r", (progress / (total / 100)));
+    Serial.print(millis());
+    Serial.printf(" OTA Progress: %u%%\r", (progress / (total / 100)));
   });
   ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("OTA Error[%u]: ", error);
+    Serial.print(millis());
+    Serial.printf(" OTA Error[%u]: ", error);
     if (error == OTA_AUTH_ERROR) Serial.println("OTA Auth Failed");
     else if (error == OTA_BEGIN_ERROR) Serial.println("OTA Begin Failed");
     else if (error == OTA_CONNECT_ERROR) Serial.println("OTA Connect Failed");
@@ -210,13 +212,14 @@ void OTASetup() {
   ArduinoOTA.begin();
 }
 
+
 bool loadPixelData() {
   if (!SPIFFS.exists("/pixelstate"))
     return false;
   File f = SPIFFS.open("/pixelstate", "r");
   if (!f)    
     return false;
-  Serial.print("Loading pixeldata from file ... ");
+  Serial.print(String(millis()) + " Loading pixeldata from file ... ");
   uint32_t i = 0;
   while(f.available() >=3 && i < NUMPIXELS) {
     uint32_t c = pixels.Color(f.read(), f.read(), f.read());
@@ -230,12 +233,11 @@ bool loadPixelData() {
   Serial.println(" Done");
   return true;
 }
-
 bool savePixelData() {
   File f = SPIFFS.open("/pixelstate", "w");
   if (!f)
     return false;
-  Serial.print("Saving pixeldata to file ... ");
+  Serial.print(String(millis()) + " Saving pixeldata to file ... ");
   for (uint32_t i = 0; i < NUMPIXELS; i++) {
     uint32_t c = pixels.getPixelColor(i);
     char out[8];
@@ -279,14 +281,14 @@ void setupWifi() {
   //if it does not connect it starts an access point
   //and goes into a blocking loop awaiting configuration
   if(!wifiManager.autoConnect()) {
-    Serial.println("failed to connect and hit timeout");
+    Serial.println(String(millis()) + " failed to connect and hit timeout");
     // todo schedule retry
   } 
 }
 
 void setupHttp() {
   http.on("/", HTTP_GET, [](){
-    http.send(200, "text/html", "result");
+    http.send(200, "text/html", "no index, try /all");
   });
   //list directory
   http.on("/list", HTTP_GET, handleFileList);
@@ -307,13 +309,13 @@ void setupHttp() {
     json += "\"heap\":"+String(ESP.getFreeHeap());
     json += ",\n \"analog\":"+String(analogRead(A0));
     json += ",\n \"gpio\":"+String((uint32_t)(((GPI | GPO) & 0xFFFF) | ((GP16I & 0x01) << 16)), HEX);
-    json += ",\n \"millis\":\""+String(millis())+"\"";
+    json += ",\n \"millis\":"+String(millis());
     json += ",\n \"time\":\""+timeString()+"\"";
-    json += ",\n \"unix\":\""+String(cnow)+"\"";
+    json += ",\n \"unix\":"+String(cnow);
 
     // https://github.com/esp8266/Arduino/blob/master/cores/esp8266/Esp.cpp#L364
     json += ",\n \"resetreason_nr\":"+String(ESP.getResetInfoPtr()->reason);
-    json += ",\n \"resetreason\":"+ESP.getResetReason();
+    json += ",\n \"resetreason\":\""+ESP.getResetReason()+"\"";
     json += ",\n \"resetinfo\":\""+ESP.getResetInfo()+"\"";
 
     json += ",\n \"rooms\":[";
@@ -342,8 +344,7 @@ void setupHttp() {
     http.send(200, "text/html", "<body bgcolor=#" + String(out) + " />");
   });
 
-  http.on("/save", HTTP_GET, [](){
-    //SPIFFS.end();
+  http.on("/save/px", HTTP_GET, [](){
     http.send(savePixelData() ? 200 : 500, "text/plain", "");
   });
 
@@ -358,21 +359,20 @@ void setup() {
   Serial.begin(115200);
 
   WiFi.printDiag(Serial);
-  Serial.printf("Connecting to last saved %s\n", WiFi.SSID().c_str());
+  Serial.print(millis());
+  Serial.printf(" Connecting to last saved %s\n", WiFi.SSID().c_str());
 
   setupWifi();
   
-  Serial.print("Free sketch size: ");
-  Serial.println((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000);
-  
   //if you get here you have connected to the WiFi
-  Serial.println("Connected");
+  Serial.print(String(millis()) + " Connected, Free sketch size: ");
+  Serial.println((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000);
 
   pixels.begin();
 
   SPIFFS.begin();
   if (!loadPixelData()) {
-    Serial.println("No pixeldata, using default");
+    Serial.println(String(millis()) + " No pixeldata, using default");
     pixels.setPixelColor(0, pixels.Color(16,16,16));
     pixels.setPixelColor(2, pixels.Color(16,16,16));
     pixels.setPixelColor(4, pixels.Color(16,16,16));
@@ -383,17 +383,18 @@ void setup() {
   DBG_OUTPUT_PORT.setDebugOutput(true);
 
   DBG_OUTPUT_PORT.println("");
-  DBG_OUTPUT_PORT.print("Connected! IP address: ");
+  DBG_OUTPUT_PORT.print(String(millis()) + " Connected! IP address: ");
   DBG_OUTPUT_PORT.println(WiFi.localIP());
   
   setupHttp();
 
   OTASetup();
   httpUpdater.setup(&http, update_path, update_username, update_password);
-  Serial.printf("HTTPUpdateServer ready! Open http://%s%s in your browser and login with username '%s' and password '%s'\n", WiFi.localIP().toString().c_str(), update_path, update_username, update_password);
+  Serial.print(millis());
+  Serial.printf(" HTTPUpdateServer ready! Open http://%s%s in your browser and login with username '%s' and password '%s'\n", WiFi.localIP().toString().c_str(), update_path, update_username, update_password);
 
   http.begin();
-  DBG_OUTPUT_PORT.println("HTTP server started");
+  DBG_OUTPUT_PORT.println(String(millis()) + " HTTP server started");
   setSyncProvider(getNtpTime);
   setSyncInterval(30 * 60);
   /* --- toa ---- */
@@ -411,22 +412,22 @@ bool checkInput() {
   unsigned long currentTime = millis();
 
   // get lock status LOW if occupied, or HIGH if free
-  bool toa[NUMPINS];
+  bool isFreeState[NUMPINS];
   bool allFree = true;
   bool noneFree = true;
   for (int i = 0; i < NUMPINS; i++) {
-    toa[i] = digitalRead(toaPins[i]);
+    isFreeState[i] = digitalRead(toaPins[i]);
 
-    if (!toa[i])
+    if (!isFreeState[i])
       allFree = false;
 
-    if (toa[i])
+    if (isFreeState[i])
       noneFree = false;
 
-    if (toa[i] != prevState[i]) {
+    if (isFreeState[i] != prevState[i]) {
       // state changed      
       timeChanged = currentTime;
-      prevState[i] = toa[i];
+      prevState[i] = isFreeState[i];
       lastStateChange[i] = now();
     }
   }
@@ -452,8 +453,9 @@ void loop() {
   http.handleClient();
   ArduinoOTA.handle();
 
-  if (millis() - lastInputCheck >= delayval) {
-    bool stateChanged = checkInput();
+  unsigned long cur = millis();
+  if (cur < lastInputCheck || cur - lastInputCheck >= delayval) {
+    checkInput();
     lastInputCheck = millis();
   }
 }
