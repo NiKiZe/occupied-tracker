@@ -223,9 +223,7 @@ bool loadPixelData() {
   uint32_t i = 0;
   while(f.available() >=3 && i < NUMPIXELS) {
     uint32_t c = pixels.Color(f.read(), f.read(), f.read());
-    char out[8];
-    sprintf(out, "%06x\n", c);
-    Serial.print(out);
+    Serial.printf("%06x\n", c);
     pixels.setPixelColor(i, c);
     i++;
   }
@@ -240,9 +238,7 @@ bool savePixelData() {
   Serial.print(String(millis()) + " Saving pixeldata to file ... ");
   for (uint32_t i = 0; i < NUMPIXELS; i++) {
     uint32_t c = pixels.getPixelColor(i);
-    char out[8];
-    sprintf(out, "%06x\n", c);
-    Serial.print(out);
+    Serial.printf("%06x\n", c);
     f.write((byte)(c >>  8)); // r
     f.write((byte)(c >> 16)); // g
     f.write((byte)(c >>  0)); // b
@@ -397,8 +393,9 @@ void setup() {
   DBG_OUTPUT_PORT.println(String(millis()) + " HTTP server started");
   setSyncProvider(getNtpTime);
   setSyncInterval(30 * 60);
+
   /* --- toa ---- */
-  // Ensure we are note used to something else
+  // Ensure we are not used to something else
   //pinMode(3, FUNCTION3);
   for (int i = 0; i < NUMPINS; i++) {
     pinMode(toaPins[i], INPUT_PULLUP);
