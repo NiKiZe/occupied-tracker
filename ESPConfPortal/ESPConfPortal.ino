@@ -578,12 +578,14 @@ bool checkInput() {
   // full send on timeout
   bool doFullSend = curTime - fullSend > (5 * 60);
   if (timeChanged == curMillis || doFullSend) {
+    Serial.print("\n\n" + String(millis()) + " do callback full: " + String(doFullSend) + " curTime: " + String(curTime) + " last fullsend: " + String(fullSend) + "\n");
     for (int i = 0; i < NUMPINS; i++) {
       if (doFullSend || lastStateChange[i] == curTime) {
-        Serial.print(String(millis()) + " doing room update " + String(doFullSend) + " " + String(lastStateChange[i]) + " - " + String(curTime) + " - " + String(fullSend) + "\n");
+        Serial.print(String(millis()) + " doing room update lastStateChange: " + String(lastStateChange[i]) + "\n");
         postRoomChange(i);
       }
     }
+    Serial.print(String(millis()) + " do callback done full: " + String(doFullSend) + "\n");
     if (doFullSend) fullSend = curTime;
   }
 
