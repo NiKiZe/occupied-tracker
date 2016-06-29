@@ -158,25 +158,24 @@ void handleFileList() {
   String output = "[";
   while(dir.next()){
     File entry = dir.openFile("r");
-    if (output != "[") output += ',';
     bool isDir = false;
     output += "{\"type\":\"";
     output += (isDir)?"dir":"file";
     output += "\",\"name\":\"";
     output += String(entry.name()).substring(1);
-    output += "\",\"size\":" + entry.size();
-    output += "}";
+    output += "\",\"size\":" + String(entry.size());
+    output += "},\n";
     entry.close();
   }
 
   FSInfo fs_info;
   SPIFFS.info(fs_info);
   output += "{totalBytes:" + String(fs_info.totalBytes);
-  output += ",usedBytes:" + String(fs_info.usedBytes);
-  output += ",blockSize:" + String(fs_info.blockSize);
-  output += ",pageSize:" + String(fs_info.pageSize);
-  output += ",maxOpenFiles:" + String(fs_info.maxOpenFiles);
-  output += ",maxPathLength:" + String(fs_info.maxPathLength);
+  output += ",\nusedBytes:" + String(fs_info.usedBytes);
+  output += ",\nblockSize:" + String(fs_info.blockSize);
+  output += ",\npageSize:" + String(fs_info.pageSize);
+  output += ",\nmaxOpenFiles:" + String(fs_info.maxOpenFiles);
+  output += ",\nmaxPathLength:" + String(fs_info.maxPathLength);
   output += "}";
 
   output += "]";
