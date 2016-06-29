@@ -44,6 +44,7 @@ Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, NEOPXPIN, NEO_GRB + NEO_
 /* --- toa ---- */
 const int delayval = 200;  // Delay for a period of time (in milliseconds).
 unsigned long timeChanged = 0;
+time_t fullSend = 0;
 #define NUMPINS 2
 const int toaPins[NUMPINS] = {2, 3};
 bool prevState[NUMPINS];
@@ -520,22 +521,26 @@ void setup() {
   /* --- /toa --- */
 }
 
-void postRoomChange(int room, bool freeState) {
+void postRoomChange(int rommidx) {
   // TODO schedule retry if there is any failure
   HTTPClient http;
-  String url = "http://caspecooccupancy.azurewebsites.net/Rooms/" + String(room) +
-    "/Occupancies?isOccupied=" + (freeState ? "false" : "true") + "&passcode=" + passcode;
-  Serial.println(String(millis()) + " start http post " + url);
+  String url = "http://caspecooccupancy.azurewebsites.net/Rooms/" + String(idxToRoomMap[rommidx]) +
+    "/Occupancies?isOccupied=" + (prevState[rommidx] ? "false" : "true") +
+    "&lastchange=" + String(lastStateChange[rommidx]) +
+    "&passcode=" + passcode;
+  Serial.print(String(millis()) + " start http post " + url + " ...\n");
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
   int result = http.POST("empty");
-  Serial.println(String(millis()) + " http post result " + String(result));
+  Serial.print(String(millis()) + " http post result " + String(result) + " ...\n");
   http.writeToStream(&Serial);
+  Serial.print("\n" + String(millis()) + " .\n");
   http.end();
 }
 
 bool checkInput() {
-  unsigned long currentTime = millis();
+  unsigned long curMillis = millis();
+  time_t curTime = now();
 
   // get lock status LOW if occupied, or HIGH if free
   bool isFreeState[NUMPINS];
@@ -552,15 +557,14 @@ bool checkInput() {
 
     if (isFreeState[i] != prevState[i]) {
       // state changed      
-      timeChanged = currentTime;
+      timeChanged = curMillis;
       prevState[i] = isFreeState[i];
-      lastStateChange[i] = now();
-      postRoomChange(idxToRoomMap[i], isFreeState[i]);
+      lastStateChange[i] = curTime;
     }
   }
 
   // Timed out, lower brightness
-  bool timeout = (currentTime - timeChanged > TIMEOUT);
+  bool timeout = (curMillis - timeChanged > TIMEOUT);
   uint32_t pixColor = allFree ?
     pixels.Color(0, timeout ? 1 : 150, 0) :
     (noneFree ? pixels.Color(255, 0, 0) :
@@ -571,7 +575,19 @@ bool checkInput() {
     pixels.show();
   }
 
-  return timeChanged == currentTime;
+  // full send on timeout
+  bool doFullSend = curTime - fullSend > (5 * 60);
+  if (timeChanged == curMillis || doFullSend) {
+    for (int i = 0; i < NUMPINS; i++) {
+      if (doFullSend || lastStateChange[i] == curTime) {
+        Serial.print(String(millis()) + " doing room update " + String(doFullSend) + " " + String(lastStateChange[i]) + " - " + String(curTime) + " - " + String(fullSend) + "\n");
+        postRoomChange(i);
+      }
+    }
+    if (doFullSend) fullSend = curTime;
+  }
+
+  return timeChanged == curMillis;
 }
 
 unsigned long lastInputCheck = 0;
