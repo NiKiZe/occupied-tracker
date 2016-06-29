@@ -225,15 +225,17 @@ bool loadRoomMap() {
   Serial.print(String(millis()) + " Loading roomMap from file ... ");
   const uint32_t _s = sizeof(uint32_t);
   uint32_t i = 0;
+  uint8_t out[_s];
   while((uint32_t)f.available() >= _s && i < NUMPINS) {
-    uint8_t out[_s];
+    Serial.print("\nAvailable: " + String(f.available()) + " ");
     f.readBytes((char *) out, _s);
-    idxToRoomMap[i] = (uint32_t) out; //out[0] | (out[1] << 8) | (out[2] << 16) | (out[3] << 24);
-    Serial.print(String(i) + " : " + String(idxToRoomMap[i]) + ", ");
+    Serial.printf("out: 0x%02x%02x%02x%02x ", out[3], out[2], out[1], out[0]);
+    idxToRoomMap[i] = out[0] | (out[1] << 8) | (out[2] << 16) | (out[3] << 24);
+    Serial.print(String(i) + " : " + String(idxToRoomMap[i]));
     i++;
   }
   f.close();
-  Serial.println(" " + String(millis()) + " Done");
+  Serial.println("\n" + String(millis()) + " Done");
   return true;
 }
 bool saveRoomMap() {
@@ -242,11 +244,19 @@ bool saveRoomMap() {
     return false;
   Serial.print(String(millis()) + " Saving roomMap to file ... ");
   for (uint32_t i = 0; i < NUMPINS; i++) {
-    Serial.print(String(i) + " : " + String(idxToRoomMap[i]) + ", ");
-    f.write(idxToRoomMap[i]);
+    Serial.print("\n" + String(i) + " : " + String(idxToRoomMap[i]) + " ");
+    f.write((byte) (idxToRoomMap[i] >>  0) & 0xff);
+    f.write((byte) (idxToRoomMap[i] >>  8) & 0xff);
+    f.write((byte) (idxToRoomMap[i] >> 16) & 0xff);
+    f.write((byte) (idxToRoomMap[i] >> 24) & 0xff);
+    Serial.printf("out: 0x%02x%02x%02x%02x",
+      (idxToRoomMap[i] >> 24) & 0xff,
+      (idxToRoomMap[i] >> 16) & 0xff,
+      (idxToRoomMap[i] >>  8) & 0xff,
+      (idxToRoomMap[i] >>  0) & 0xff);
   }
   f.close();
-  Serial.println(" Done");
+  Serial.println("\n" + String(millis()) + " Done");
   return true;
 }
 
@@ -261,7 +271,7 @@ bool loadPasscode() {
   passcode = f.readStringUntil('\n');
   passcode.replace("\n", "");
   f.close();
-  Serial.println(passcode + " Done");
+  Serial.println(passcode + " " + String(millis()) + " Done");
   return true;
 }
 bool savePasscode() {
@@ -271,7 +281,7 @@ bool savePasscode() {
   Serial.print(String(millis()) + " Saving passcode " + passcode + " to file ... ");
   f.print(passcode + "\n");
   f.close();
-  Serial.println(" Done");
+  Serial.println(String(millis()) + " Done");
   return true;
 }
 
@@ -291,7 +301,7 @@ bool loadPixelData() {
     i++;
   }
   f.close();
-  Serial.println(" Done");
+  Serial.println(String(millis()) + " Done");
   return true;
 }
 bool savePixelData() {
@@ -306,7 +316,7 @@ bool savePixelData() {
     f.write((byte)(c >> 16)); // g
     f.write((byte)(c >>  0)); // b
   }
-  Serial.println(" Done");
+  Serial.println(String(millis()) + " Done");
   return true;
 }
 
