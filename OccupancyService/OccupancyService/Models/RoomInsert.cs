@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
-
-namespace OccupancyService.Models
+﻿namespace OccupancyService.Models
 {
     /// <summary>
     /// Represents a single room
@@ -20,6 +15,10 @@ namespace OccupancyService.Models
         /// </summary>
         public string Description { get; set; }
 
+        /// <summary>
+        /// Generates a new room from these insert-parameters
+        /// </summary>
+        /// <returns></returns>
         public Room ToRoom()
         {
             return new Room

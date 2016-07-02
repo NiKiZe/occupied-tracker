@@ -22,10 +22,19 @@ namespace OccupancyService.Repositories
             _tableClient = storageAccount.CreateCloudTableClient();
         }
 
-        public async Task DeleteTable()
+        public async Task DeleteAll()
         {
             CloudTable table = _tableClient.GetTableReference("rooms");
-            await table.DeleteIfExistsAsync();
+            TableQuery<TableEntity> query = new TableQuery<TableEntity>();
+            var batchOperation = new TableBatchOperation();
+            foreach (var roomEntity in table.ExecuteQuery(query))
+            {
+                batchOperation.Delete(roomEntity);
+            }
+            if (batchOperation.Count > 0)
+            {
+                await table.ExecuteBatchAsync(batchOperation);
+            }
         }
 
         public async Task<IEnumerable<RoomEntity>> GetAll()
@@ -44,7 +53,7 @@ namespace OccupancyService.Repositories
             await table.CreateIfNotExistsAsync();
 
             // Get a single room
-            TableQuery<RoomEntity> query = new TableQuery<RoomEntity>().Where(TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, id.ToString()));
+            TableQuery<RoomEntity> query = new TableQuery<RoomEntity>().Where(TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, id.ToString("d19")));
             return table.ExecuteQuery(query).FirstOrDefault();
         }
 
@@ -58,7 +67,7 @@ namespace OccupancyService.Repositories
             {
                 Description = room.Description,
                 IsOccupied = room.IsOccupied,
-                LatestOccupancyChangedTime = room.LatestOccupancyChangedTime
+                LastUpdate = room.LastUpdate
             };
             TableOperation insertOperation = TableOperation.Insert(roomEntity);
             await table.ExecuteAsync(insertOperation);
@@ -83,7 +92,7 @@ namespace OccupancyService.Repositories
             await table.CreateIfNotExistsAsync();
 
             // Delete entry
-            TableOperation retrieveOperation = TableOperation.Retrieve<RoomEntity>("Rooms", id.ToString());
+            TableOperation retrieveOperation = TableOperation.Retrieve<RoomEntity>("Rooms", id.ToString("d19"));
             TableResult retrievedResult = await table.ExecuteAsync(retrieveOperation);
             RoomEntity deleteEntity = (RoomEntity)retrievedResult.Result;
 

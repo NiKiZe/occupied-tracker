@@ -1,15 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
 using System.Security.Authentication;
 using System.Threading.Tasks;
-using System.Web;
 using System.Web.Http;
 using Microsoft.AspNet.SignalR;
 using Microsoft.Azure;
-using Microsoft.WindowsAzure.Storage;
 using OccupancyService.Models;
 using OccupancyService.Repositories;
 
@@ -65,7 +61,7 @@ namespace OccupancyService.Controllers
             var repository = new RoomRepository();
             var roomToInsert = room.ToRoom();
             roomToInsert.IsOccupied = isOccupied;
-            roomToInsert.LatestOccupancyChangedTime = latestOccupancyChangedTime;
+            roomToInsert.LastUpdate = latestOccupancyChangedTime;
             var insertedRoomEntity = await repository.Insert(roomToInsert);
             return insertedRoomEntity?.ToRoom();
         }
@@ -85,7 +81,7 @@ namespace OccupancyService.Controllers
             CheckPasscode(passcode);
             
             var repository = new RoomRepository();
-            await repository.DeleteTable();
+            await repository.DeleteAll();
         }
 
         /// <summary>
@@ -148,16 +144,17 @@ namespace OccupancyService.Controllers
                 throw new ArgumentException("Room not found");
             }
 
+
             // Update occupied if changed
             var occupiedChanged = roomUpdate.IsOccupied.HasValue && roomUpdate.IsOccupied != roomEntity.IsOccupied;
             if (occupiedChanged)
             {
-                roomEntity.LatestOccupancyChangedTime = DateTime.Now;
                 await ChangeOccupancy(id, roomUpdate.IsOccupied.Value);
             }
 
             // Save changes
             roomEntity.Update(roomUpdate);
+            roomEntity.LastUpdate = DateTime.UtcNow;
             var updatedRoomEntity = await repository.Update(roomEntity);
             return updatedRoomEntity?.ToRoom();
         }
@@ -193,7 +190,7 @@ namespace OccupancyService.Controllers
             CheckPasscode(passcode);
 
             var repository = new OccupancyRepository();
-            await repository.DeleteTable();
+            await repository.DeleteAll();
         }
 
         /// <summary>
@@ -234,14 +231,10 @@ namespace OccupancyService.Controllers
             var roomEntity = await repository.Get(id);
             if (roomEntity != null)
             {
-                // Update occupied if changed
-                var occupiedChanged = isOccupied != roomEntity.IsOccupied;
-                if (occupiedChanged)
-                {
-                    roomEntity.IsOccupied = isOccupied;
-                    roomEntity.LatestOccupancyChangedTime = DateTime.Now;
-                    await repository.Update(roomEntity);
-                }
+                // Update room status
+                roomEntity.IsOccupied = isOccupied;
+                roomEntity.LastUpdate = DateTime.UtcNow;
+                await repository.Update(roomEntity);
             }
 
             // Create/update occupancy
@@ -272,10 +265,12 @@ namespace OccupancyService.Controllers
             // Send event on SignalR
             var context = GlobalHost.ConnectionManager.GetHubContext<OccupancyHub>();
             context.Clients.All.occupancyChanged(roomId, isOccupied);
-
+            
             // Update DB
             var repository = new OccupancyRepository();
-            if (isOccupied)
+            var occupancyEntity = await repository.GetLatestOccupancy(roomId);
+            
+            if (isOccupied && (occupancyEntity == null || occupancyEntity.EndTime.HasValue))
             {
                 // Create a new occupancy
                 var occupancy = new Occupancy
@@ -286,14 +281,17 @@ namespace OccupancyService.Controllers
                 var insertedRoomEntity = await repository.Insert(occupancy);
                 return insertedRoomEntity?.ToOccupancy();
             }
-            else
+            
+            if (!isOccupied && occupancyEntity != null && !occupancyEntity.EndTime.HasValue)
             {
                 // End the last occupancy
-                var occupancyEntity = await repository.GetLatestOccupancy(roomId);
                 occupancyEntity.EndTime = DateTime.UtcNow;
                 var updatedOccupancyEntity = await repository.Update(occupancyEntity);
                 return updatedOccupancyEntity?.ToOccupancy();
             }
+
+            // Status has not changed (or could not be changed)
+            return occupancyEntity?.ToOccupancy();
         }
 
         private void CheckPasscode(string passcode)

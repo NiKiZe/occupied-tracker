@@ -26,10 +26,19 @@ namespace OccupancyService.Repositories
             _tableClient = storageAccount.CreateCloudTableClient();
         }
 
-        public async Task DeleteTable()
+        public async Task DeleteAll()
         {
             CloudTable table = _tableClient.GetTableReference("occupancies");
-            await table.DeleteIfExistsAsync();
+            TableQuery<TableEntity> query = new TableQuery<TableEntity>();
+            var batchOperation = new TableBatchOperation();
+            foreach (var occupancyEntity in table.ExecuteQuery(query))
+            {
+                batchOperation.Delete(occupancyEntity);
+            }
+            if (batchOperation.Count > 0)
+            {
+                await table.ExecuteBatchAsync(batchOperation);
+            }
         }
 
         public async Task<IEnumerable<OccupancyEntity>> GetAll(long? roomId = null)

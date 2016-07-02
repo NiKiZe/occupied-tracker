@@ -12,16 +12,25 @@ namespace OccupancyService.TableEntities
         public RoomEntity(long roomId)
         {
             PartitionKey = "Rooms";
-            RowKey = roomId.ToString();
+            RowKey = roomId.ToString("d19");
         }
 
         public RoomEntity() { }
 
+        /// <summary>
+        /// Name of room
+        /// </summary>
         public string Description { get; set; }
 
+        /// <summary>
+        /// Indicates if the room is currently occupied
+        /// </summary>
         public bool IsOccupied { get; set; }
-        
-        public DateTime LatestOccupancyChangedTime { get; set; }
+
+        /// <summary>
+        /// Indicates when this room was last updated
+        /// </summary>
+        public DateTime LastUpdate { get; set; }
 
         public void Update(RoomUpdate roomUpdate)
         {
@@ -43,7 +52,7 @@ namespace OccupancyService.TableEntities
                 Id = long.Parse(RowKey),
                 Description = Description,
                 IsOccupied = IsOccupied,
-                LatestOccupancyChangedTime = LatestOccupancyChangedTime
+                LastUpdate = LastUpdate
             };
         }
     }

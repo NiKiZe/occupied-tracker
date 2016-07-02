@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
 
 namespace OccupancyService.Models
 {
@@ -26,8 +23,8 @@ namespace OccupancyService.Models
         public bool IsOccupied { get; set; }
 
         /// <summary>
-        /// Indicates when occupancy was last changed
+        /// Indicates when this room was last updated
         /// </summary>
-        public DateTime LatestOccupancyChangedTime { get; set; }
+        public DateTime LastUpdate { get; set; }
     }
 }
