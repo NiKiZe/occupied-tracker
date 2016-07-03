@@ -159,7 +159,8 @@
   <ItemGroup>
     <Content Include="Documentation\OccupancyService.XML" />
     <Content Include="Fonts\glyphicons-halflings-regular.svg" />
-    <Content Include="icon_128.png" />
+    <Content Include="icon_128_original.png" />
+    <Content Include="icon_192.png" />
     <Content Include="index.html" />
     <Content Include="packages.config" />
     <Content Include="Scripts\bootstrap.js" />
