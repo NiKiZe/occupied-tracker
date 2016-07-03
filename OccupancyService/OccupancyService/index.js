@@ -71,15 +71,32 @@ ko.applyBindings(viewModel);
 
 // Set up SignalR-connection
 var occupancyHub = $.connection.occupancyHub;
-occupancyHub.client.occupancyChanged = function (roomId, isOccupied) {
-    for (var i = 0; i < viewModel.rooms().length; i++) {
-        var room = viewModel.rooms()[i];
-        if (room.Id === roomId) {
-            // Update isOccupied
-            var updatedRoom = { Id: roomId, Description: room.Description, IsOccupied: isOccupied };
-            viewModel.rooms.replace(room, updatedRoom);
+occupancyHub.client.occupancyChanged = function (changeType, newRooms) {
+    newRooms.forEach(function(newRoom) {
+        for (var i = 0; i < viewModel.rooms().length; i++) {
+            var room = viewModel.rooms()[i];
+            if (changeType === "updated" && room.Id === newRoom.Id) {
+                // Update room
+                viewModel.rooms.replace(room, newRoom);
+                return;
+            } else if (changeType === "deleted" && room.Id === newRoom.Id) {
+                // Delete room
+                viewModel.rooms.splice(i, 1);
+                return;
+            } else if (changeType === "new" && room.Id > newRoom.Id) {
+                // Add new room in middle of array
+                viewModel.rooms.splice(i, 0, newRoom);
+                return;
+            }
         }
-    }
+
+        // Handle new room at the end
+        if (changeType === "new") {
+            // Add new room at end of array
+            viewModel.rooms.push(newRoom);
+            return;
+        }
+    });
 };
 
 // Connect to server

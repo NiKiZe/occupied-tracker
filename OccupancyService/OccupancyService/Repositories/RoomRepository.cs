@@ -22,12 +22,13 @@ namespace OccupancyService.Repositories
             _tableClient = storageAccount.CreateCloudTableClient();
         }
 
-        public async Task DeleteAll()
+        public async Task<IEnumerable<RoomEntity>>  DeleteAll()
         {
             CloudTable table = _tableClient.GetTableReference("rooms");
-            TableQuery<TableEntity> query = new TableQuery<TableEntity>();
+            TableQuery<RoomEntity> query = new TableQuery<RoomEntity>();
             var batchOperation = new TableBatchOperation();
-            foreach (var roomEntity in table.ExecuteQuery(query))
+            var roomEntities = table.ExecuteQuery(query).ToList();
+            foreach (var roomEntity in roomEntities)
             {
                 batchOperation.Delete(roomEntity);
             }
@@ -35,6 +36,7 @@ namespace OccupancyService.Repositories
             {
                 await table.ExecuteBatchAsync(batchOperation);
             }
+            return roomEntities;
         }
 
         public async Task<IEnumerable<RoomEntity>> GetAll()
@@ -86,7 +88,7 @@ namespace OccupancyService.Repositories
             return roomEntity;
         }
 
-        public async Task Delete(long id)
+        public async Task<RoomEntity> Delete(long id)
         {
             CloudTable table = _tableClient.GetTableReference("rooms");
             await table.CreateIfNotExistsAsync();
@@ -103,6 +105,8 @@ namespace OccupancyService.Repositories
                 // Execute the operation.
                 await table.ExecuteAsync(deleteOperation);
             }
+
+            return deleteEntity;
         }
     }
 }

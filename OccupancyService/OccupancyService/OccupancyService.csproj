@@ -207,6 +207,7 @@
   <ItemGroup>
     <Compile Include="Controllers\RoomsController.cs" />
     <Compile Include="CustomDirectRouteProvider.cs" />
+    <Compile Include="Models\RoomChangeType.cs" />
     <Compile Include="Models\RoomInsert.cs" />
     <Compile Include="Models\Room.cs" />
     <Compile Include="Models\Occupancy.cs" />

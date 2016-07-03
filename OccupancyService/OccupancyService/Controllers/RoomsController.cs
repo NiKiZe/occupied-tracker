@@ -8,6 +8,7 @@ using Microsoft.AspNet.SignalR;
 using Microsoft.Azure;
 using OccupancyService.Models;
 using OccupancyService.Repositories;
+using OccupancyService.TableEntities;
 
 namespace OccupancyService.Controllers
 {
@@ -51,8 +52,7 @@ namespace OccupancyService.Controllers
             // Check if it is occupied (occupancies can has been created before the room)
             var occupancyRepository = new OccupancyRepository();
             var latestOccupancy = await occupancyRepository.GetLatestOccupancy(room.Id);
-            var latestOccupancyChangedTime =
-                latestOccupancy != null
+            var lastUpdate = latestOccupancy != null
                     ? (latestOccupancy.EndTime ?? latestOccupancy.StartTime) // Last time occupancy changed
                     : DateTime.Now; // It started being available now
             var isOccupied = latestOccupancy != null && !latestOccupancy.EndTime.HasValue;
@@ -61,9 +61,11 @@ namespace OccupancyService.Controllers
             var repository = new RoomRepository();
             var roomToInsert = room.ToRoom();
             roomToInsert.IsOccupied = isOccupied;
-            roomToInsert.LastUpdate = latestOccupancyChangedTime;
+            roomToInsert.LastUpdate = lastUpdate;
             var insertedRoomEntity = await repository.Insert(roomToInsert);
-            return insertedRoomEntity?.ToRoom();
+            var insertedRoom = insertedRoomEntity?.ToRoom();
+            PostSignalR(RoomChangeType.New, insertedRoom);
+            return insertedRoom;
         }
 
         /// <summary>
@@ -76,12 +78,15 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("")]
         [HttpDelete]
-        public async Task Delete(string passcode = null)
+        public async Task<IEnumerable<Room>> Delete(string passcode = null)
         {
             CheckPasscode(passcode);
             
             var repository = new RoomRepository();
-            await repository.DeleteAll();
+            var deletedRoomEntities = await repository.DeleteAll();
+            var deletedRooms = deletedRoomEntities?.Select(x => x.ToRoom());
+            PostSignalR(RoomChangeType.Deleted, deletedRooms?.ToArray());
+            return deletedRooms;
         }
 
         /// <summary>
@@ -112,12 +117,15 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("{id}")]
         [HttpDelete]
-        public async Task Delete(long id, string passcode = null)
+        public async Task<Room> Delete(long id, string passcode = null)
         {
             CheckPasscode(passcode);
 
             var repository = new RoomRepository();
-            await repository.Delete(id);
+            var deletedRoomEntity = await repository.Delete(id);
+            var deletedRoom = deletedRoomEntity?.ToRoom();
+            PostSignalR(RoomChangeType.Deleted, deletedRoom);
+            return deletedRoom;
         }
 
         /// <summary>
@@ -144,7 +152,6 @@ namespace OccupancyService.Controllers
                 throw new ArgumentException("Room not found");
             }
 
-
             // Update occupied if changed
             var occupiedChanged = roomUpdate.IsOccupied.HasValue && roomUpdate.IsOccupied != roomEntity.IsOccupied;
             if (occupiedChanged)
@@ -156,7 +163,9 @@ namespace OccupancyService.Controllers
             roomEntity.Update(roomUpdate);
             roomEntity.LastUpdate = DateTime.UtcNow;
             var updatedRoomEntity = await repository.Update(roomEntity);
-            return updatedRoomEntity?.ToRoom();
+            var updatedRoom = updatedRoomEntity?.ToRoom();
+            PostSignalR(RoomChangeType.Updated, updatedRoom);
+            return updatedRoom;
         }
 
         /// <summary>
@@ -185,12 +194,26 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("Occupancies")]
         [HttpDelete]
-        public async Task DeleteOccupancies(string passcode = null)
+        public async Task<IEnumerable<Occupancy>> DeleteOccupancies(string passcode = null)
         {
             CheckPasscode(passcode);
 
-            var repository = new OccupancyRepository();
-            await repository.DeleteAll();
+            // Delete all occupancies
+            var occupancyRepository = new OccupancyRepository();
+            var deletedEntities = await occupancyRepository.DeleteAll();
+
+            // Set all rooms to unoccupied
+            var roomRepository = new RoomRepository();
+            var roomEntities = await roomRepository.GetAll();
+            var updateRoomEntities = roomEntities.Where(x => x.IsOccupied).ToList();
+            foreach (var updateRoomEntity in updateRoomEntities)
+            {
+                updateRoomEntity.IsOccupied = false;
+                updateRoomEntity.LastUpdate = DateTime.UtcNow;
+                await roomRepository.Update(updateRoomEntity);
+            }
+            PostSignalR(RoomChangeType.Updated, updateRoomEntities.Select(x => x.ToRoom()).ToArray());
+            return deletedEntities?.Select(x => x.ToOccupancy());
         }
 
         /// <summary>
@@ -232,7 +255,11 @@ namespace OccupancyService.Controllers
             if (roomEntity != null)
             {
                 // Update room status
-                roomEntity.IsOccupied = isOccupied;
+                if (roomEntity.IsOccupied != isOccupied)
+                {
+                    roomEntity.IsOccupied = isOccupied;
+                    PostSignalR(RoomChangeType.Updated, roomEntity.ToRoom());
+                }
                 roomEntity.LastUpdate = DateTime.UtcNow;
                 await repository.Update(roomEntity);
             }
@@ -252,20 +279,29 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("{id}/Occupancies")]
         [HttpDelete]
-        public async Task DeleteOccupanciesInRoom(long id, string passcode = null)
+        public async Task<IEnumerable<Occupancy>> DeleteOccupanciesInRoom(long id, string passcode = null)
         {
             CheckPasscode(passcode);
 
-            var repository = new OccupancyRepository();
-            await repository.DeleteAllInRoom(id);
+            var occupancyRepository = new OccupancyRepository();
+            var deletedEntities = await occupancyRepository.DeleteAllInRoom(id);
+
+            // Set rooms to unoccupied
+            var roomRepository = new RoomRepository();
+            var roomEntity = await roomRepository.Get(id);
+            if (roomEntity != null && roomEntity.IsOccupied)
+            {
+                roomEntity.IsOccupied = false;
+                roomEntity.LastUpdate = DateTime.UtcNow;
+                await roomRepository.Update(roomEntity);
+                PostSignalR(RoomChangeType.Updated, roomEntity.ToRoom());
+            }
+
+            return deletedEntities?.Select(x => x.ToOccupancy());
         }
 
         private async Task<Occupancy> ChangeOccupancy(long roomId, bool isOccupied)
         {
-            // Send event on SignalR
-            var context = GlobalHost.ConnectionManager.GetHubContext<OccupancyHub>();
-            context.Clients.All.occupancyChanged(roomId, isOccupied);
-            
             // Update DB
             var repository = new OccupancyRepository();
             var occupancyEntity = await repository.GetLatestOccupancy(roomId);
@@ -292,6 +328,38 @@ namespace OccupancyService.Controllers
 
             // Status has not changed (or could not be changed)
             return occupancyEntity?.ToOccupancy();
+        }
+
+        private void PostSignalR(RoomChangeType changeType, params Room[] rooms)
+        {
+            if (rooms == null)
+            {
+                return;
+            }
+            var roomsFiltered = rooms.Where(x => x != null).ToList();
+            if (roomsFiltered.Count == 0)
+            {
+                return;
+            }
+
+            // Send event on SignalR
+            string typeString;
+            switch (changeType)
+            {
+                case RoomChangeType.New:
+                    typeString = "new";
+                    break;
+                case RoomChangeType.Updated:
+                    typeString = "updated";
+                    break;
+                case RoomChangeType.Deleted:
+                    typeString = "deleted";
+                    break;
+                default:
+                    throw new Exception($"Unknown RoomChangeType: {changeType}");
+            }
+            var context = GlobalHost.ConnectionManager.GetHubContext<OccupancyHub>();
+            context.Clients.All.occupancyChanged(typeString, rooms);
         }
 
         private void CheckPasscode(string passcode)

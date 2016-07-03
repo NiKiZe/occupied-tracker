@@ -26,19 +26,21 @@ namespace OccupancyService.Repositories
             _tableClient = storageAccount.CreateCloudTableClient();
         }
 
-        public async Task DeleteAll()
+        public async Task<IEnumerable<OccupancyEntity>> DeleteAll()
         {
             CloudTable table = _tableClient.GetTableReference("occupancies");
-            TableQuery<TableEntity> query = new TableQuery<TableEntity>();
+            TableQuery<OccupancyEntity> query = new TableQuery<OccupancyEntity>();
+            var deleteEntities = table.ExecuteQuery(query).ToList();
             var batchOperation = new TableBatchOperation();
-            foreach (var occupancyEntity in table.ExecuteQuery(query))
+            foreach (var deleteEntity in deleteEntities)
             {
-                batchOperation.Delete(occupancyEntity);
+                batchOperation.Delete(deleteEntity);
             }
             if (batchOperation.Count > 0)
             {
                 await table.ExecuteBatchAsync(batchOperation);
             }
+            return deleteEntities;
         }
 
         public async Task<IEnumerable<OccupancyEntity>> GetAll(long? roomId = null)
@@ -62,7 +64,7 @@ namespace OccupancyService.Repositories
             return table.ExecuteQuery(query);
         }
 
-        public async Task DeleteAllInRoom(long roomId)
+        public async Task<IEnumerable<OccupancyEntity>> DeleteAllInRoom(long roomId)
         {
             CloudTable table = _tableClient.GetTableReference("occupancies");
             await table.CreateIfNotExistsAsync();
@@ -74,15 +76,19 @@ namespace OccupancyService.Repositories
                         "PartitionKey",
                         QueryComparisons.Equal,
                         roomId.ToString()));
-            var occupancyEntities = table.ExecuteQuery(query);
+            var deleteEntities = table.ExecuteQuery(query);
 
             // Delete entities
             TableBatchOperation batchOperation = new TableBatchOperation();
-            foreach (var occupancyEntity in occupancyEntities)
+            foreach (var deleteEntity in deleteEntities)
             {
-                batchOperation.Delete(occupancyEntity);
+                batchOperation.Delete(deleteEntity);
             }
-            await table.ExecuteBatchAsync(batchOperation);
+            if (batchOperation.Count > 0)
+            {
+                await table.ExecuteBatchAsync(batchOperation);
+            }
+            return deleteEntities;
         }
 
         public async Task<OccupancyEntity> GetLatestOccupancy(long roomId)
