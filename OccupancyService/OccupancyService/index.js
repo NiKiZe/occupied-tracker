@@ -1,4 +1,16 @@
-﻿function refreshRoomList() {
+﻿function RoomsViewModel() {
+    this.rooms = ko.observableArray([]);
+    this.connectionStatusText = ko.observable("Connecting...");
+    this.connectionStatusClass = ko.observable("label-default");
+    this.reconnectButtonVisible = ko.observable(false);
+    this.reconnect = function () {
+        refreshRoomList();
+        connectToSignalR();
+    }
+}
+var viewModel = new RoomsViewModel();
+
+function refreshRoomList() {
     $.get("Rooms")
         .done(function (data) {
             viewModel.rooms(data);
@@ -26,52 +38,33 @@ function connectToSignalR() {
             viewModel.connectionStatusClass("label-danger");
             viewModel.reconnectButtonVisible(true);
         });
-    $.connection.hub.connectionSlow(function () {
-        viewModel.connectionStatusText("Slow connection");
-        viewModel.connectionStatusClass("label-warning");
-        viewModel.reconnectButtonVisible(false);
-    });
-    $.connection.hub.reconnecting(function () {
-        viewModel.connectionStatusText("Reconnecting...");
-        viewModel.connectionStatusClass("label-warning");
-        viewModel.reconnectButtonVisible(false);
-    });
-    $.connection.hub.reconnected(function () {
-        viewModel.connectionStatusText("Reconnected");
-        viewModel.connectionStatusClass("label-success");
-        viewModel.reconnectButtonVisible(false);
-        refreshRoomList(); // Refresh list & status, since we could have missed events
-    });
-    $.connection.hub.disconnected(function () {
-        if (viewModel.connectionStatusText() !== "Could not connect") {
-            viewModel.connectionStatusText("Disconnected");
-            viewModel.connectionStatusClass("label-danger");
-            viewModel.reconnectButtonVisible(true);
-        }
-    });
 }
 
-function connect() {
-    refreshRoomList();
-    connectToSignalR();
-}
-
-function RoomsViewModel() {
-    this.rooms = ko.observableArray([]);
-    this.connectionStatusText = ko.observable("Connecting...");
-    this.connectionStatusClass = ko.observable("label-default");
-    this.reconnectButtonVisible = ko.observable(false);
-    this.reconnect = function() {
-        connect();
+// Set up SignalR callbacks
+$.connection.hub.connectionSlow(function () {
+    viewModel.connectionStatusText("Slow connection");
+    viewModel.connectionStatusClass("label-warning");
+    viewModel.reconnectButtonVisible(false);
+});
+$.connection.hub.reconnecting(function () {
+    viewModel.connectionStatusText("Reconnecting...");
+    viewModel.connectionStatusClass("label-warning");
+    viewModel.reconnectButtonVisible(false);
+});
+$.connection.hub.reconnected(function () {
+    viewModel.connectionStatusText("Reconnected");
+    viewModel.connectionStatusClass("label-success");
+    viewModel.reconnectButtonVisible(false);
+    refreshRoomList(); // Refresh list & status, since we could have missed events
+});
+$.connection.hub.disconnected(function () {
+    if (viewModel.connectionStatusText() !== "Could not connect") {
+        viewModel.connectionStatusText("Disconnected");
+        viewModel.connectionStatusClass("label-danger");
+        viewModel.reconnectButtonVisible(true);
     }
-}
-
-var viewModel = new RoomsViewModel();
-ko.applyBindings(viewModel);
-
-// Set up SignalR-connection
-var occupancyHub = $.connection.occupancyHub;
-occupancyHub.client.occupancyChanged = function (changeType, newRooms) {
+});
+$.connection.roomsHub.client.roomsChanged = function (changeType, newRooms) {
     newRooms.forEach(function(newRoom) {
         for (var i = 0; i < viewModel.rooms().length; i++) {
             var room = viewModel.rooms()[i];
@@ -99,10 +92,10 @@ occupancyHub.client.occupancyChanged = function (changeType, newRooms) {
     });
 };
 
-// Connect to server
-connect();
-window.setInterval(function () {
-    // Refresh room list every 1h
-    refreshRoomList();
-}, 3600000); // 1 * 60 * 60 * 1000 ms
+// Set up and bind ViewModel
+ko.applyBindings(viewModel);
+
+// Get Room list and connect to SignalR
+refreshRoomList();
+connectToSignalR();
 

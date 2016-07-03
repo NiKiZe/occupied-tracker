@@ -8,7 +8,7 @@ using Microsoft.AspNet.SignalR;
 
 namespace OccupancyService
 {
-    public class OccupancyHub : Hub
+    public class RoomsHub : Hub
     {
         private static List<string> _connections = new List<string>();
 

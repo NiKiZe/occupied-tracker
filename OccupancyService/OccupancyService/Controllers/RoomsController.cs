@@ -358,8 +358,8 @@ namespace OccupancyService.Controllers
                 default:
                     throw new Exception($"Unknown RoomChangeType: {changeType}");
             }
-            var context = GlobalHost.ConnectionManager.GetHubContext<OccupancyHub>();
-            context.Clients.All.occupancyChanged(typeString, rooms);
+            var context = GlobalHost.ConnectionManager.GetHubContext<RoomsHub>();
+            context.Clients.All.roomsChanged(typeString, rooms);
         }
 
         private void CheckPasscode(string passcode)
