@@ -159,6 +159,7 @@
   <ItemGroup>
     <Content Include="Documentation\OccupancyService.XML" />
     <Content Include="Fonts\glyphicons-halflings-regular.svg" />
+    <Content Include="icon_128.png" />
     <Content Include="index.html" />
     <Content Include="packages.config" />
     <Content Include="Scripts\bootstrap.js" />
@@ -168,6 +169,7 @@
     <Content Include="Fonts\glyphicons-halflings-regular.ttf" />
     <Content Include="Fonts\glyphicons-halflings-regular.woff" />
     <Content Include="Fonts\glyphicons-halflings-regular.woff2" />
+    <Content Include="manifest.json" />
     <None Include="Properties\PublishProfiles\caspecowatchdog - FTP.pubxml" />
     <None Include="Properties\PublishProfiles\caspecowatchdog - Web Deploy.pubxml">
       <SubType>Designer</SubType>

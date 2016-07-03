@@ -1,0 +1,13 @@
+﻿{
+  "name": "Caspeco Occupancy",
+  "icons": [
+    {
+      "src": "icon_128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "index.html",
+  "display": "standalone"
+  //"orientation": "landscape"
+}
