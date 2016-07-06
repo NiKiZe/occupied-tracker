@@ -30,17 +30,21 @@ namespace OccupancyService.Repositories
         {
             CloudTable table = _tableClient.GetTableReference("occupancies");
             TableQuery<OccupancyEntity> query = new TableQuery<OccupancyEntity>();
-            var deleteEntities = table.ExecuteQuery(query).ToList();
-            var batchOperation = new TableBatchOperation();
-            foreach (var deleteEntity in deleteEntities)
+            var occupancyEntities = table.ExecuteQuery(query).ToList();
+            var occupancyEntitiesGroupedByRoom = occupancyEntities.GroupBy(x => x.PartitionKey);
+            foreach (var occupancyEntitiesInRoom in occupancyEntitiesGroupedByRoom)
             {
-                batchOperation.Delete(deleteEntity);
+                var batchOperation = new TableBatchOperation();
+                foreach (var occupancyEntity in occupancyEntitiesInRoom)
+                {
+                    batchOperation.Delete(occupancyEntity);
+                }
+                if (batchOperation.Count > 0)
+                {
+                    await table.ExecuteBatchAsync(batchOperation);
+                }
             }
-            if (batchOperation.Count > 0)
-            {
-                await table.ExecuteBatchAsync(batchOperation);
-            }
-            return deleteEntities;
+            return occupancyEntities;
         }
 
         public async Task<IEnumerable<OccupancyEntity>> GetAll(long? roomId = null, TimeSpan? timeMin = null, TimeSpan? timeMax = null)
