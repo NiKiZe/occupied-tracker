@@ -31,6 +31,7 @@ namespace OccupancyService.TableEntities
         {
             return new Occupancy
             {
+                Id = long.Parse(RowKey),
                 RoomId = long.Parse(PartitionKey),
                 StartTime = StartTime,
                 EndTime = EndTime

@@ -47,7 +47,10 @@ namespace OccupancyService.Controllers
         [HttpPost]
         public async Task<Room> Post(RoomInsert room, string passcode = null)
         {
-            CheckPasscode(passcode);
+            if (!IsAuthorized(passcode, PasscodeType.Write))
+            {
+                throw new AuthenticationException("Wrong passcode");
+            }
 
             // Check if it is occupied (occupancies can has been created before the room)
             var occupancyRepository = new OccupancyRepository();
@@ -80,8 +83,11 @@ namespace OccupancyService.Controllers
         [HttpDelete]
         public async Task<IEnumerable<Room>> Delete(string passcode = null)
         {
-            CheckPasscode(passcode);
-            
+            if (!IsAuthorized(passcode, PasscodeType.Write))
+            {
+                throw new AuthenticationException("Wrong passcode");
+            }
+
             var repository = new RoomRepository();
             var deletedRoomEntities = await repository.DeleteAll();
             var deletedRooms = deletedRoomEntities?.Select(x => x.ToRoom());
@@ -119,7 +125,10 @@ namespace OccupancyService.Controllers
         [HttpDelete]
         public async Task<Room> Delete(long id, string passcode = null)
         {
-            CheckPasscode(passcode);
+            if (!IsAuthorized(passcode, PasscodeType.Write))
+            {
+                throw new AuthenticationException("Wrong passcode");
+            }
 
             var repository = new RoomRepository();
             var deletedRoomEntity = await repository.Delete(id);
@@ -142,7 +151,10 @@ namespace OccupancyService.Controllers
         [HttpPut]
         public async Task<Room> Put(long id, RoomUpdate roomUpdate, string passcode = null)
         {
-            CheckPasscode(passcode);
+            if (!IsAuthorized(passcode, PasscodeType.Write))
+            {
+                throw new AuthenticationException("Wrong passcode");
+            }
 
             // Get old room version
             var repository = new RoomRepository();
@@ -177,10 +189,22 @@ namespace OccupancyService.Controllers
         /// <returns></returns>
         [Route("Occupancies")]
         [HttpGet]
-        public async Task<IEnumerable<Occupancy>> GetOccupancies()
+        public async Task<IEnumerable<Occupancy>> GetOccupancies(string passcode = null)
         {
             var repository = new OccupancyRepository();
-            var occupancyEntities = await repository.GetAll();
+            IEnumerable<OccupancyEntity> occupancyEntities;
+            if (IsAuthorized(passcode, PasscodeType.Read))
+            {
+                // Full list
+                occupancyEntities = await repository.GetAll();
+            }
+            else
+            {
+                // Filtered list
+                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMin"));
+                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMax"));
+                occupancyEntities = await repository.GetAll(timeMin: minTime, timeMax: maxTime);
+            }
             return occupancyEntities.Select(x => x.ToOccupancy());
         }
 
@@ -196,7 +220,10 @@ namespace OccupancyService.Controllers
         [HttpDelete]
         public async Task<IEnumerable<Occupancy>> DeleteOccupancies(string passcode = null)
         {
-            CheckPasscode(passcode);
+            if (!IsAuthorized(passcode, PasscodeType.Write))
+            {
+                throw new AuthenticationException("Wrong passcode");
+            }
 
             // Delete all occupancies
             var occupancyRepository = new OccupancyRepository();
@@ -223,13 +250,28 @@ namespace OccupancyService.Controllers
         /// Gets occupancy history of a single room
         /// </remarks>
         /// <param name="id">The room id</param>
+        /// <param name="passcode">Passcode</param>
         /// <returns></returns>
         [Route("{id}/Occupancies")]
         [HttpGet]
-        public async Task<IEnumerable<Occupancy>> GetOccupanciesForRoom(long id)
+        public async Task<IEnumerable<Occupancy>> GetOccupanciesForRoom(long id, string passcode = null)
         {
             var repository = new OccupancyRepository();
-            var occupancyEntities = await repository.GetAll(id);
+
+            IEnumerable<OccupancyEntity> occupancyEntities;
+            if (IsAuthorized(passcode, PasscodeType.Read))
+            {
+                // Full list
+                occupancyEntities = await repository.GetAll(id);
+            }
+            else
+            {
+                // Filtered list
+                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMin"));
+                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMax"));
+                occupancyEntities = await repository.GetAll(id, minTime, maxTime);
+            }
+            
             return occupancyEntities.Select(x => x.ToOccupancy());
         }
 
@@ -247,7 +289,10 @@ namespace OccupancyService.Controllers
         [HttpPost]
         public async Task<Occupancy> PostOccupancy(long id, bool isOccupied, string passcode = null)
         {
-            CheckPasscode(passcode);
+            if (!IsAuthorized(passcode, PasscodeType.Write))
+            {
+                throw new AuthenticationException("Wrong passcode");
+            }
 
             // Get old room version if existing
             var repository = new RoomRepository();
@@ -281,7 +326,10 @@ namespace OccupancyService.Controllers
         [HttpDelete]
         public async Task<IEnumerable<Occupancy>> DeleteOccupanciesInRoom(long id, string passcode = null)
         {
-            CheckPasscode(passcode);
+            if (!IsAuthorized(passcode, PasscodeType.Write))
+            {
+                throw new AuthenticationException("Wrong passcode");
+            }
 
             var occupancyRepository = new OccupancyRepository();
             var deletedEntities = await occupancyRepository.DeleteAllInRoom(id);
@@ -362,18 +410,28 @@ namespace OccupancyService.Controllers
             context.Clients.All.roomsChanged(typeString, rooms);
         }
 
-        private void CheckPasscode(string passcode)
+        private enum PasscodeType
+        {
+            Read,
+            Write
+        }
+
+        private bool IsAuthorized(string passcode, PasscodeType type)
         {
             // Check passcode if there is one
-            var correctPasscode = CloudConfigurationManager.GetSetting("ApiPasscode");
-            if (string.IsNullOrEmpty(correctPasscode) || passcode == correctPasscode)
+            string correctPasscode;
+            switch (type)
             {
-                // Passcode is disabled, or it is correct. Continue
+                case PasscodeType.Read:
+                    correctPasscode = CloudConfigurationManager.GetSetting("ApiReadPasscode");
+                    break;
+                case PasscodeType.Write:
+                    correctPasscode = CloudConfigurationManager.GetSetting("ApiWritePasscode");
+                    break;
+                default:
+                    throw new Exception("Unknown passcode type");
             }
-            else
-            {
-                throw new AuthenticationException("Wrong passcode");
-            }
+            return string.IsNullOrEmpty(correctPasscode) || passcode == correctPasscode;
         }
     }
 }

@@ -13,6 +13,11 @@ namespace OccupancyService.Models
     public class Occupancy
     {
         /// <summary>
+        /// The occupancy id
+        /// </summary>
+        public long Id { get; set; }
+
+        /// <summary>
         /// The room id
         /// </summary>
         public long RoomId { get; set; }

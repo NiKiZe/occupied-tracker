@@ -43,7 +43,7 @@ namespace OccupancyService.Repositories
             return deleteEntities;
         }
 
-        public async Task<IEnumerable<OccupancyEntity>> GetAll(long? roomId = null)
+        public async Task<IEnumerable<OccupancyEntity>> GetAll(long? roomId = null, TimeSpan? timeMin = null, TimeSpan? timeMax = null)
         {
             CloudTable table = _tableClient.GetTableReference("occupancies");
             await table.CreateIfNotExistsAsync();
@@ -61,7 +61,15 @@ namespace OccupancyService.Repositories
                         roomId.ToString()));
             }
 
-            return table.ExecuteQuery(query);
+            var occupancyEntities = table.ExecuteQuery(query);
+
+            // Only show occupancies within the given time
+            if (timeMin.HasValue && timeMax.HasValue)
+            {
+                occupancyEntities =
+                    occupancyEntities.Where(x => x.StartTime.TimeOfDay >= timeMin && x.StartTime.TimeOfDay <= timeMax);
+            }
+            return occupancyEntities;
         }
 
         public async Task<IEnumerable<OccupancyEntity>> DeleteAllInRoom(long roomId)
