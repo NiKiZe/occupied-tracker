@@ -92,6 +92,13 @@ $.connection.roomsHub.client.roomsChanged = function (changeType, newRooms) {
     });
 };
 
+// Reconnect automatically on window focus, if disconnected
+$(window).focus(function () {
+    if (viewModel.reconnectButtonVisible()) {
+        viewModel.reconnect();
+    }
+});
+
 // Set up and bind ViewModel
 ko.applyBindings(viewModel);
 
