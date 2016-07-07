@@ -99,6 +99,16 @@ $(window).focus(function () {
     }
 });
 
+// Workaround to reconnect automatically if page is suspended for more than 5 seconds (mobile)
+var lastFired = new Date().getTime();
+setInterval(function () {
+    now = new Date().getTime();
+    if (now - lastFired > 5000 && viewModel.reconnectButtonVisible()) {//if it's been more than 5 seconds
+        viewModel.reconnect();
+    }
+    lastFired = now;
+}, 500);
+
 // Set up and bind ViewModel
 ko.applyBindings(viewModel);
 
