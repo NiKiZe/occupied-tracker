@@ -8,7 +8,8 @@ namespace OccupancyService.Models
     public enum RoomChangeType
     {
         New,
-        Updated,
-        Deleted
+        Update,
+        HiddenUpdate,
+        Delete
     }
 }

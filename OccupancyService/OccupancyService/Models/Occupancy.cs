@@ -26,10 +26,5 @@ namespace OccupancyService.Models
         /// The time the room started to become occupied
         /// </summary>
         public DateTime StartTime { get; set; }
-
-        /// <summary>
-        /// The time when the room became unoccupied again
-        /// </summary>
-        public DateTime? EndTime { get; set; }
     }
 }

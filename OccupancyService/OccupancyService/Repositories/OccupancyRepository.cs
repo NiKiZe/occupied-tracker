@@ -47,7 +47,7 @@ namespace OccupancyService.Repositories
             return occupancyEntities;
         }
 
-        public async Task<IEnumerable<OccupancyEntity>> GetAll(long? roomId = null, TimeSpan? timeMin = null, TimeSpan? timeMax = null)
+        public async Task<IEnumerable<OccupancyEntity>> GetAll(long? roomId = null)
         {
             CloudTable table = _tableClient.GetTableReference("occupancies");
             await table.CreateIfNotExistsAsync();
@@ -62,17 +62,10 @@ namespace OccupancyService.Repositories
                     TableQuery.GenerateFilterCondition(
                         "PartitionKey",
                         QueryComparisons.Equal,
-                        roomId.ToString()));
+                        roomId.Value.ToString("d19")));
             }
 
             var occupancyEntities = table.ExecuteQuery(query);
-
-            // Only show occupancies within the given time
-            if (timeMin.HasValue && timeMax.HasValue)
-            {
-                occupancyEntities =
-                    occupancyEntities.Where(x => x.StartTime.TimeOfDay >= timeMin && x.StartTime.TimeOfDay <= timeMax);
-            }
             return occupancyEntities;
         }
 
@@ -87,7 +80,7 @@ namespace OccupancyService.Repositories
                     TableQuery.GenerateFilterCondition(
                         "PartitionKey",
                         QueryComparisons.Equal,
-                        roomId.ToString()));
+                        roomId.ToString("d19")));
             var deleteEntities = table.ExecuteQuery(query);
 
             // Delete entities
@@ -115,7 +108,7 @@ namespace OccupancyService.Repositories
                         TableQuery.GenerateFilterCondition(
                             "PartitionKey",
                             QueryComparisons.Equal,
-                            roomId.ToString()))
+                            roomId.ToString("d19")))
                     .Take(1);
             return table.ExecuteQuery(query).FirstOrDefault();
         }
@@ -128,8 +121,7 @@ namespace OccupancyService.Repositories
             // Insert new occupancy
             var occupancyEntity = new OccupancyEntity(occupancy.RoomId, DateTime.MaxValue.Ticks - DateTime.UtcNow.Ticks)
             {
-                StartTime = occupancy.StartTime,
-                EndTime = occupancy.EndTime
+                StartTime = occupancy.StartTime
             };
             TableOperation insertOperation = TableOperation.Insert(occupancyEntity);
             await table.ExecuteAsync(insertOperation);

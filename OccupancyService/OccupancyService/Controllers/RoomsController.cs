@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Authentication;
 using System.Threading.Tasks;
 using System.Web.Http;
+using System.Xml;
 using Microsoft.AspNet.SignalR;
 using Microsoft.Azure;
 using OccupancyService.Models;
@@ -24,13 +25,42 @@ namespace OccupancyService.Controllers
         /// <remarks>
         /// Gets list of all rooms
         /// </remarks>
+        /// <param name="passcode">Passcode for this method</param>
         /// <returns></returns>
         [Route("")]
         [HttpGet]
-        public async Task<IEnumerable<Room>> Get()
+        public async Task<IEnumerable<Room>> Get(string passcode = null)
         {
             var repository = new RoomRepository();
-            var roomEntities = await repository.GetAll();
+            IEnumerable<RoomEntity> roomEntities;
+            if (IsAuthorized(passcode, PasscodeType.Read))
+            {
+                // Full list
+                roomEntities = await repository.GetAll();
+            }
+            else
+            {
+                // Filtered list
+                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMin"));
+                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMax"));
+                roomEntities = (await repository.GetAll()).ToList();
+                foreach (var roomEntity in roomEntities)
+                {
+                    if (roomEntity.LastUpdate.TimeOfDay < minTime)
+                    {
+                        // Simulate exit at previous day office closing hours
+                        roomEntity.IsOccupied = false;
+                        var previousDay = roomEntity.LastUpdate.Date.AddDays(-1);
+                        roomEntity.LastUpdate = new DateTime(previousDay.Year, previousDay.Month, previousDay.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds);
+                    }
+                    else if (roomEntity.LastUpdate.TimeOfDay > maxTime)
+                    {
+                        // Simulate exit at office closing hours
+                        roomEntity.IsOccupied = false;
+                        roomEntity.LastUpdate = new DateTime(roomEntity.LastUpdate.Year, roomEntity.LastUpdate.Month, roomEntity.LastUpdate.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds);
+                    }
+                }
+            }
             return roomEntities.Select(x => x.ToRoom());
         }
 
@@ -52,22 +82,13 @@ namespace OccupancyService.Controllers
                 throw new AuthenticationException("Wrong passcode");
             }
 
-            // Check if it is occupied (occupancies can has been created before the room)
-            var occupancyRepository = new OccupancyRepository();
-            var latestOccupancy = await occupancyRepository.GetLatestOccupancy(room.Id);
-            var lastUpdate = latestOccupancy != null
-                    ? (latestOccupancy.EndTime ?? latestOccupancy.StartTime) // Last time occupancy changed
-                    : DateTime.Now; // It started being available now
-            var isOccupied = latestOccupancy != null && !latestOccupancy.EndTime.HasValue;
-
             // Insert room
             var repository = new RoomRepository();
             var roomToInsert = room.ToRoom();
-            roomToInsert.IsOccupied = isOccupied;
-            roomToInsert.LastUpdate = lastUpdate;
+            roomToInsert.LastUpdate = DateTime.UtcNow;
             var insertedRoomEntity = await repository.Insert(roomToInsert);
             var insertedRoom = insertedRoomEntity?.ToRoom();
-            PostSignalR(RoomChangeType.New, insertedRoom);
+            PostSignalR(RoomChangeType.New, new[] { insertedRoom });
             return insertedRoom;
         }
 
@@ -91,7 +112,7 @@ namespace OccupancyService.Controllers
             var repository = new RoomRepository();
             var deletedRoomEntities = await repository.DeleteAll();
             var deletedRooms = deletedRoomEntities?.Select(x => x.ToRoom());
-            PostSignalR(RoomChangeType.Deleted, deletedRooms?.ToArray());
+            PostSignalR(RoomChangeType.Delete, deletedRooms);
             return deletedRooms;
         }
 
@@ -102,13 +123,40 @@ namespace OccupancyService.Controllers
         /// Gets a single room
         /// </remarks>
         /// <param name="id">Room id</param>
+        /// <param name="passcode">Passcode for this method</param>
         /// <returns></returns>
         [Route("{id}")]
         [HttpGet]
-        public async Task<Room> Get(long id)
+        public async Task<Room> Get(long id, string passcode = null)
         {
             var repository = new RoomRepository();
-            var roomEntity = await repository.Get(id);
+            RoomEntity roomEntity;
+            if (IsAuthorized(passcode, PasscodeType.Read))
+            {
+                // Real room status
+                roomEntity = await repository.Get(id);
+            }
+            else
+            {
+                // Room status always unoccupied outside office hours
+                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMin"));
+                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMax"));
+                roomEntity = await repository.Get(id);
+
+                if (roomEntity.LastUpdate.TimeOfDay < minTime)
+                {
+                    // Simulate exit at previous day office closing hours
+                    roomEntity.IsOccupied = false;
+                    var previousDay = roomEntity.LastUpdate.Date.AddDays(-1);
+                    roomEntity.LastUpdate = new DateTime(previousDay.Year, previousDay.Month, previousDay.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds);
+                }
+                else if (roomEntity.LastUpdate.TimeOfDay > maxTime)
+                {
+                    // Simulate exit at office closing hours
+                    roomEntity.IsOccupied = false;
+                    roomEntity.LastUpdate = new DateTime(roomEntity.LastUpdate.Year, roomEntity.LastUpdate.Month, roomEntity.LastUpdate.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds);
+                }
+            }
             return roomEntity?.ToRoom();
         }
 
@@ -133,7 +181,7 @@ namespace OccupancyService.Controllers
             var repository = new RoomRepository();
             var deletedRoomEntity = await repository.Delete(id);
             var deletedRoom = deletedRoomEntity?.ToRoom();
-            PostSignalR(RoomChangeType.Deleted, deletedRoom);
+            PostSignalR(RoomChangeType.Delete, new[] { deletedRoom });
             return deletedRoom;
         }
 
@@ -176,7 +224,7 @@ namespace OccupancyService.Controllers
             roomEntity.LastUpdate = DateTime.UtcNow;
             var updatedRoomEntity = await repository.Update(roomEntity);
             var updatedRoom = updatedRoomEntity?.ToRoom();
-            PostSignalR(RoomChangeType.Updated, updatedRoom);
+            PostSignalR(occupiedChanged ? RoomChangeType.HiddenUpdate : RoomChangeType.Update, new[] { updatedRoom });
             return updatedRoom;
         }
 
@@ -186,6 +234,7 @@ namespace OccupancyService.Controllers
         /// <remarks>
         /// Gets occupancy history of all rooms
         /// </remarks>
+        /// <param name="passcode">Passcode for this method</param>
         /// <returns></returns>
         [Route("Occupancies")]
         [HttpGet]
@@ -200,10 +249,12 @@ namespace OccupancyService.Controllers
             }
             else
             {
-                // Filtered list
+                // Only show occupancies within the set time
                 var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMin"));
                 var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMax"));
-                occupancyEntities = await repository.GetAll(timeMin: minTime, timeMax: maxTime);
+                occupancyEntities =
+                    (await repository.GetAll()).Where(
+                        x => x.StartTime.TimeOfDay >= minTime && x.StartTime.TimeOfDay <= maxTime);
             }
             return occupancyEntities.Select(x => x.ToOccupancy());
         }
@@ -239,7 +290,7 @@ namespace OccupancyService.Controllers
                 updateRoomEntity.LastUpdate = DateTime.UtcNow;
                 await roomRepository.Update(updateRoomEntity);
             }
-            PostSignalR(RoomChangeType.Updated, updateRoomEntities.Select(x => x.ToRoom()).ToArray());
+            PostSignalR(RoomChangeType.Update, updateRoomEntities.Select(x => x.ToRoom()));
             return deletedEntities?.Select(x => x.ToOccupancy());
         }
 
@@ -266,10 +317,12 @@ namespace OccupancyService.Controllers
             }
             else
             {
-                // Filtered list
+                // Only show occupancies within the set time
                 var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMin"));
                 var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMax"));
-                occupancyEntities = await repository.GetAll(id, minTime, maxTime);
+                occupancyEntities =
+                    (await repository.GetAll()).Where(
+                        x => x.StartTime.TimeOfDay >= minTime && x.StartTime.TimeOfDay <= maxTime);
             }
             
             return occupancyEntities.Select(x => x.ToOccupancy());
@@ -303,7 +356,7 @@ namespace OccupancyService.Controllers
                 if (roomEntity.IsOccupied != isOccupied)
                 {
                     roomEntity.IsOccupied = isOccupied;
-                    PostSignalR(RoomChangeType.Updated, roomEntity.ToRoom());
+                    PostSignalR(RoomChangeType.HiddenUpdate, new[] { roomEntity.ToRoom() });
                 }
                 roomEntity.LastUpdate = DateTime.UtcNow;
                 await repository.Update(roomEntity);
@@ -342,7 +395,7 @@ namespace OccupancyService.Controllers
                 roomEntity.IsOccupied = false;
                 roomEntity.LastUpdate = DateTime.UtcNow;
                 await roomRepository.Update(roomEntity);
-                PostSignalR(RoomChangeType.Updated, roomEntity.ToRoom());
+                PostSignalR(RoomChangeType.Update, new[] { roomEntity.ToRoom() });
             }
 
             return deletedEntities?.Select(x => x.ToOccupancy());
@@ -352,9 +405,8 @@ namespace OccupancyService.Controllers
         {
             // Update DB
             var repository = new OccupancyRepository();
-            var occupancyEntity = await repository.GetLatestOccupancy(roomId);
-            
-            if (isOccupied && (occupancyEntity == null || occupancyEntity.EndTime.HasValue))
+
+            if (isOccupied)
             {
                 // Create a new occupancy
                 var occupancy = new Occupancy
@@ -365,31 +417,53 @@ namespace OccupancyService.Controllers
                 var insertedRoomEntity = await repository.Insert(occupancy);
                 return insertedRoomEntity?.ToOccupancy();
             }
-            
-            if (!isOccupied && occupancyEntity != null && !occupancyEntity.EndTime.HasValue)
+            else
             {
-                // End the last occupancy
-                occupancyEntity.EndTime = DateTime.UtcNow;
-                var updatedOccupancyEntity = await repository.Update(occupancyEntity);
-                return updatedOccupancyEntity?.ToOccupancy();
+                // Show the old occupancy (do not store exit time for now)
+                var occupancyEntity = await repository.GetLatestOccupancy(roomId);
+                return occupancyEntity?.ToOccupancy();
             }
-
-            // Status has not changed (or could not be changed)
-            return occupancyEntity?.ToOccupancy();
         }
 
-        private void PostSignalR(RoomChangeType changeType, params Room[] rooms)
+        private void PostSignalR(RoomChangeType changeType, IEnumerable<Room> rooms)
         {
             if (rooms == null)
             {
                 return;
             }
-            var roomsFiltered = rooms.Where(x => x != null).ToList();
+            rooms = rooms.Where(x => x != null);
+
+            if (changeType == RoomChangeType.HiddenUpdate)
+            {
+                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMin"));
+                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMax"));
+                var currentTimeOfDay = DateTime.UtcNow.TimeOfDay;
+                if (currentTimeOfDay < minTime)
+                {
+                    // Do not show
+                    return;
+                }
+                if (currentTimeOfDay > maxTime)
+                {
+                    // Since this is a hidden update to rooms outside normal office hours, we only show 'exits' within the first 30min after office closed
+                    if ((currentTimeOfDay - maxTime).TotalMinutes <= 30)
+                    {
+                        rooms = rooms.Where(x => !x.IsOccupied);
+                    }
+                    else
+                    {
+                        // Do not show
+                        return;
+                    }
+                }
+            }
+
+            var roomsFiltered = rooms.ToList();
             if (roomsFiltered.Count == 0)
             {
                 return;
             }
-
+            
             // Send event on SignalR
             string typeString;
             switch (changeType)
@@ -397,17 +471,18 @@ namespace OccupancyService.Controllers
                 case RoomChangeType.New:
                     typeString = "new";
                     break;
-                case RoomChangeType.Updated:
+                case RoomChangeType.Update:
+                case RoomChangeType.HiddenUpdate:
                     typeString = "updated";
                     break;
-                case RoomChangeType.Deleted:
+                case RoomChangeType.Delete:
                     typeString = "deleted";
                     break;
                 default:
                     throw new Exception($"Unknown RoomChangeType: {changeType}");
             }
             var context = GlobalHost.ConnectionManager.GetHubContext<RoomsHub>();
-            context.Clients.All.roomsChanged(typeString, rooms);
+            context.Clients.All.roomsChanged(typeString, roomsFiltered);
         }
 
         private enum PasscodeType

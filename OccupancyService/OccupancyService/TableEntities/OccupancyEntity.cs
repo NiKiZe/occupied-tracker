@@ -12,19 +12,17 @@ namespace OccupancyService.TableEntities
     {
         public OccupancyEntity(long roomId, long rowKey)
         {
-            PartitionKey = roomId.ToString();
+            PartitionKey = roomId.ToString("d19");
             RowKey = rowKey.ToString("d19");
         }
 
         public OccupancyEntity() { }
         
         public DateTime StartTime { get; set; }
-        public DateTime? EndTime { get; set; }
         
         public void Update(Occupancy occupancy)
         {
             StartTime = StartTime;
-            EndTime = EndTime;
         }
 
         public Occupancy ToOccupancy()
@@ -33,8 +31,7 @@ namespace OccupancyService.TableEntities
             {
                 Id = long.Parse(RowKey),
                 RoomId = long.Parse(PartitionKey),
-                StartTime = StartTime,
-                EndTime = EndTime
+                StartTime = StartTime
             };
         }
     }
