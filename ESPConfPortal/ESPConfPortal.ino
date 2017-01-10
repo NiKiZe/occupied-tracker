@@ -10,6 +10,7 @@
  *  Use GIO0 as Pixel output (add resistor), that way no pull down is active on boot(?)
  *  If TX is moved to GIO2, then GIO1 can be used as input
  *  on the other hand so can GIO2? (check more on the UART usage?)
+ *  GIO2 MUST not be low on boot (UART mode is initialized)
  *
  *  Inputs available:
  *  GIO1/2 & GIO3
@@ -38,15 +39,15 @@
 #endif
 
 #define NEOPXPIN       0
-#define NUMPIXELS      8
+#define NUMPIXELS      1
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, NEOPXPIN, NEO_GRB + NEO_KHZ800);
 
 /* --- toa ---- */
 const int delayval = 200;  // Delay for a period of time (in milliseconds).
 unsigned long timeChanged = 0;
 time_t fullSend = 0;
-#define NUMPINS 2
-const int toaPins[NUMPINS] = {2, 3};
+#define NUMPINS 1
+const int toaPins[NUMPINS] = {3};
 bool prevState[NUMPINS];
 time_t lastStateChange[NUMPINS];
 uint32_t idxToRoomMap[NUMPINS];
@@ -147,8 +148,6 @@ void configModeCallback (WiFiManager *myWiFiManager) {
 #define DBG_OUTPUT_PORT Serial
 
 void handleFileList() {
-  pixels.setPixelColor(7, pixels.Color(0,0,16));
-  pixels.show();
   if(!http.hasArg("dir")) {http.send(500, "text/plain", "BAD ARGS"); return;}
   
   String path = http.arg("dir");
@@ -365,15 +364,11 @@ void setupHttp() {
   //called when the url is not defined here
   //use it to load content from SPIFFS
   http.onNotFound([](){
-    pixels.setPixelColor(7, pixels.Color(64,0,0));
-    pixels.show();
     http.send(404, "text/plain", "FileNotFound " + http.uri());
   });
 
   //get heap status, analog input value and all GPIO statuses in one json call
   http.on("/all", HTTP_GET, [](){
-    pixels.setPixelColor(7, pixels.Color(0,16,0));
-    pixels.show();
     time_t cnow = now();
     String json = "{";
     json += "\"heap\":"+String(ESP.getFreeHeap());
@@ -447,9 +442,6 @@ void setupHttp() {
   http.on("/save/passcode", HTTP_GET, [](){
     http.send(savePasscode() ? 200 : 500, "text/plain", "");
   });
-  http.on("/save/px", HTTP_GET, [](){
-    http.send(savePixelData() ? 200 : 500, "text/plain", "");
-  });
 
   http.on("/time", HTTP_GET, [](){
     http.send(200, "text/plain", timeString());
@@ -474,14 +466,6 @@ void setup() {
   pixels.begin();
 
   SPIFFS.begin();
-  if (!loadPixelData()) {
-    Serial.println(String(millis()) + " No pixeldata, using default");
-    pixels.setPixelColor(0, pixels.Color(16,16,16));
-    pixels.setPixelColor(2, pixels.Color(16,16,16));
-    pixels.setPixelColor(4, pixels.Color(16,16,16));
-    pixels.setPixelColor(6, pixels.Color(16,16,16));
-  }
-  pixels.show();
 
   DBG_OUTPUT_PORT.setDebugOutput(true);
 
