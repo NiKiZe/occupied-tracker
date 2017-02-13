@@ -25,6 +25,6 @@ namespace OccupancyService.Models
         /// <summary>
         /// Indicates when this room was last updated
         /// </summary>
-        public DateTime LastUpdate { get; set; }
+        public DateTimeOffset LastUpdate { get; set; }
     }
 }

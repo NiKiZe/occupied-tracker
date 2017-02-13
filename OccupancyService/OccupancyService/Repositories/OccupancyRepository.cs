@@ -119,10 +119,7 @@ namespace OccupancyService.Repositories
             await table.CreateIfNotExistsAsync();
 
             // Insert new occupancy
-            var occupancyEntity = new OccupancyEntity(occupancy.RoomId, DateTime.MaxValue.Ticks - DateTime.UtcNow.Ticks)
-            {
-                StartTime = occupancy.StartTime
-            };
+            var occupancyEntity = new OccupancyEntity(occupancy.RoomId, occupancy.StartTime.UtcDateTime);
             TableOperation insertOperation = TableOperation.Insert(occupancyEntity);
             await table.ExecuteAsync(insertOperation);
             return occupancyEntity;

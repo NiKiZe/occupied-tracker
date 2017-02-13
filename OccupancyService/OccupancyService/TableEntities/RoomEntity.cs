@@ -1,21 +1,36 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
+using Microsoft.Azure;
 using Microsoft.WindowsAzure.Storage.Table;
 using OccupancyService.Models;
 
 namespace OccupancyService.TableEntities
 {
+    /// <summary>
+    /// Represents a single room
+    /// </summary>
     public class RoomEntity : TableEntity
     {
-        public RoomEntity(long roomId)
+        static readonly TimeZoneInfo LocalTimeZone = TimeZoneInfo.FindSystemTimeZoneById(CloudConfigurationManager.GetSetting("TimeZone"));
+
+        /// <summary>
+        /// Creates a new room entity
+        /// </summary>
+        /// <param name="id"></param>
+        public RoomEntity(long id)
         {
             PartitionKey = "Rooms";
-            RowKey = roomId.ToString("d19");
+            RowKey = id.ToString("d19");
         }
 
+        /// <summary>
+        /// Creates a new room entity
+        /// </summary>
         public RoomEntity() { }
+
+        /// <summary>
+        /// Room id
+        /// </summary>
+        public long Id => long.Parse(RowKey);
 
         /// <summary>
         /// Name of room
@@ -28,10 +43,14 @@ namespace OccupancyService.TableEntities
         public bool IsOccupied { get; set; }
 
         /// <summary>
-        /// Indicates when this room was last updated
+        /// Indicates when this room was last updated, in UTC
         /// </summary>
         public DateTime LastUpdate { get; set; }
 
+        /// <summary>
+        /// Updates this room with the information contained in the room update
+        /// </summary>
+        /// <param name="roomUpdate"></param>
         public void Update(RoomUpdate roomUpdate)
         {
             if (roomUpdate.Description != null)
@@ -45,14 +64,20 @@ namespace OccupancyService.TableEntities
             }
         }
 
+        /// <summary>
+        /// Converts this room entity to a room
+        /// </summary>
+        /// <returns></returns>
         public Room ToRoom()
         {
+            var lastUpdateLocalTime = TimeZoneInfo.ConvertTimeFromUtc(LastUpdate, LocalTimeZone);
+            var lastUpdateLocalTimeOffset = new DateTimeOffset(lastUpdateLocalTime, LocalTimeZone.GetUtcOffset(LastUpdate));
             return new Room
             {
-                Id = long.Parse(RowKey),
+                Id = Id,
                 Description = Description,
                 IsOccupied = IsOccupied,
-                LastUpdate = LastUpdate
+                LastUpdate = lastUpdateLocalTimeOffset
             };
         }
     }

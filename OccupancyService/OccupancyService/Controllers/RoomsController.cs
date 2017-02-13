@@ -4,7 +4,6 @@ using System.Linq;
 using System.Security.Authentication;
 using System.Threading.Tasks;
 using System.Web.Http;
-using System.Xml;
 using Microsoft.AspNet.SignalR;
 using Microsoft.Azure;
 using OccupancyService.Models;
@@ -19,6 +18,8 @@ namespace OccupancyService.Controllers
     [RoutePrefix("Rooms")]
     public class RoomsController : ApiController
     {
+        static readonly TimeZoneInfo LocalTimeZone = TimeZoneInfo.FindSystemTimeZoneById(CloudConfigurationManager.GetSetting("TimeZone"));
+
         /// <summary>
         /// Gets list of all rooms
         /// </summary>
@@ -32,36 +33,30 @@ namespace OccupancyService.Controllers
         public async Task<IEnumerable<Room>> Get(string passcode = null)
         {
             var repository = new RoomRepository();
-            IEnumerable<RoomEntity> roomEntities;
-            if (IsAuthorized(passcode, PasscodeType.Read))
-            {
-                // Full list
-                roomEntities = await repository.GetAll();
-            }
-            else
+            var rooms = (await repository.GetAll()).Select(x => x.ToRoom()).ToList();
+            if (!IsAuthorized(passcode, PasscodeType.Read))
             {
                 // Filtered list
-                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMin"));
-                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMax"));
-                roomEntities = (await repository.GetAll()).ToList();
-                foreach (var roomEntity in roomEntities)
+                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMin"));
+                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMax"));
+                foreach (var room in rooms)
                 {
-                    if (roomEntity.LastUpdate.TimeOfDay < minTime)
+                    if (room.LastUpdate.TimeOfDay < minTime)
                     {
                         // Simulate exit at previous day office closing hours
-                        roomEntity.IsOccupied = false;
-                        var previousDay = roomEntity.LastUpdate.Date.AddDays(-1);
-                        roomEntity.LastUpdate = new DateTime(previousDay.Year, previousDay.Month, previousDay.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds);
+                        room.IsOccupied = false;
+                        var previousDay = room.LastUpdate.Date.AddDays(-1);
+                        room.LastUpdate = new DateTimeOffset(previousDay.Year, previousDay.Month, previousDay.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds, room.LastUpdate.Offset);
                     }
-                    else if (roomEntity.LastUpdate.TimeOfDay > maxTime)
+                    else if (room.LastUpdate.TimeOfDay > maxTime)
                     {
                         // Simulate exit at office closing hours
-                        roomEntity.IsOccupied = false;
-                        roomEntity.LastUpdate = new DateTime(roomEntity.LastUpdate.Year, roomEntity.LastUpdate.Month, roomEntity.LastUpdate.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds);
+                        room.IsOccupied = false;
+                        room.LastUpdate = new DateTimeOffset(room.LastUpdate.Year, room.LastUpdate.Month, room.LastUpdate.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds, room.LastUpdate.Offset);
                     }
                 }
             }
-            return roomEntities.Select(x => x.ToRoom());
+            return rooms;
         }
 
         /// <summary>
@@ -85,7 +80,7 @@ namespace OccupancyService.Controllers
             // Insert room
             var repository = new RoomRepository();
             var roomToInsert = room.ToRoom();
-            roomToInsert.LastUpdate = DateTime.UtcNow;
+            roomToInsert.LastUpdate = DateTimeOffset.UtcNow;
             var insertedRoomEntity = await repository.Insert(roomToInsert);
             var insertedRoom = insertedRoomEntity?.ToRoom();
             PostSignalR(RoomChangeType.New, new[] { insertedRoom });
@@ -130,34 +125,28 @@ namespace OccupancyService.Controllers
         public async Task<Room> Get(long id, string passcode = null)
         {
             var repository = new RoomRepository();
-            RoomEntity roomEntity;
-            if (IsAuthorized(passcode, PasscodeType.Read))
-            {
-                // Real room status
-                roomEntity = await repository.Get(id);
-            }
-            else
+            var room = (await repository.Get(id))?.ToRoom();
+            if (room != null &&!IsAuthorized(passcode, PasscodeType.Read))
             {
                 // Room status always unoccupied outside office hours
-                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMin"));
-                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMax"));
-                roomEntity = await repository.Get(id);
-
-                if (roomEntity.LastUpdate.TimeOfDay < minTime)
+                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMin"));
+                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMax"));
+                
+                if (room.LastUpdate.TimeOfDay < minTime)
                 {
                     // Simulate exit at previous day office closing hours
-                    roomEntity.IsOccupied = false;
-                    var previousDay = roomEntity.LastUpdate.Date.AddDays(-1);
-                    roomEntity.LastUpdate = new DateTime(previousDay.Year, previousDay.Month, previousDay.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds);
+                    room.IsOccupied = false;
+                    var previousDay = room.LastUpdate.Date.AddDays(-1);
+                    room.LastUpdate = new DateTimeOffset(previousDay.Year, previousDay.Month, previousDay.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds, room.LastUpdate.Offset);
                 }
-                else if (roomEntity.LastUpdate.TimeOfDay > maxTime)
+                else if (room.LastUpdate.TimeOfDay > maxTime)
                 {
                     // Simulate exit at office closing hours
-                    roomEntity.IsOccupied = false;
-                    roomEntity.LastUpdate = new DateTime(roomEntity.LastUpdate.Year, roomEntity.LastUpdate.Month, roomEntity.LastUpdate.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds);
+                    room.IsOccupied = false;
+                    room.LastUpdate = new DateTimeOffset(room.LastUpdate.Year, room.LastUpdate.Month, room.LastUpdate.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds, room.LastUpdate.Offset);
                 }
             }
-            return roomEntity?.ToRoom();
+            return room;
         }
 
         /// <summary>
@@ -241,22 +230,17 @@ namespace OccupancyService.Controllers
         public async Task<IEnumerable<Occupancy>> GetOccupancies(string passcode = null)
         {
             var repository = new OccupancyRepository();
-            IEnumerable<OccupancyEntity> occupancyEntities;
-            if (IsAuthorized(passcode, PasscodeType.Read))
-            {
-                // Full list
-                occupancyEntities = await repository.GetAll();
-            }
-            else
+            var occupancies = (await repository.GetAll())
+                .Select(x => x.ToOccupancy());
+            if (!IsAuthorized(passcode, PasscodeType.Read))
             {
                 // Only show occupancies within the set time
-                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMin"));
-                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMax"));
-                occupancyEntities =
-                    (await repository.GetAll()).Where(
-                        x => x.StartTime.TimeOfDay >= minTime && x.StartTime.TimeOfDay <= maxTime);
+                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMin"));
+                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMax"));
+                occupancies = occupancies
+                    .Where(x => x.StartTime.TimeOfDay >= minTime && x.StartTime.TimeOfDay <= maxTime);
             }
-            return occupancyEntities.Select(x => x.ToOccupancy());
+            return occupancies.OrderByDescending(x => x.StartTime);
         }
 
         /// <summary>
@@ -308,24 +292,18 @@ namespace OccupancyService.Controllers
         public async Task<IEnumerable<Occupancy>> GetOccupanciesForRoom(long id, string passcode = null)
         {
             var repository = new OccupancyRepository();
+            var occupancies = (await repository.GetAll(id))
+                    .Select(x => x.ToOccupancy());
 
-            IEnumerable<OccupancyEntity> occupancyEntities;
-            if (IsAuthorized(passcode, PasscodeType.Read))
-            {
-                // Full list
-                occupancyEntities = await repository.GetAll(id);
-            }
-            else
+            if (!IsAuthorized(passcode, PasscodeType.Read))
             {
                 // Only show occupancies within the set time
-                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMin"));
-                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMax"));
-                occupancyEntities =
-                    (await repository.GetAll()).Where(
-                        x => x.StartTime.TimeOfDay >= minTime && x.StartTime.TimeOfDay <= maxTime);
+                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMin"));
+                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMax"));
+                occupancies = occupancies
+                    .Where(x => x.StartTime.TimeOfDay >= minTime && x.StartTime.TimeOfDay <= maxTime);
             }
-            
-            return occupancyEntities.Select(x => x.ToOccupancy());
+            return occupancies.OrderByDescending(x => x.StartTime);
         }
 
         /// <summary>
@@ -435,9 +413,10 @@ namespace OccupancyService.Controllers
 
             if (changeType == RoomChangeType.HiddenUpdate)
             {
-                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMin"));
-                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedTimeMax"));
-                var currentTimeOfDay = DateTime.UtcNow.TimeOfDay;
+                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMin"));
+                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMax"));
+                var currentLocalTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, LocalTimeZone);
+                var currentTimeOfDay = currentLocalTime.TimeOfDay;
                 if (currentTimeOfDay < minTime)
                 {
                     // Do not show

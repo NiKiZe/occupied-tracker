@@ -25,6 +25,6 @@ namespace OccupancyService.Models
         /// <summary>
         /// The time the room started to become occupied
         /// </summary>
-        public DateTime StartTime { get; set; }
+        public DateTimeOffset StartTime { get; set; }
     }
 }

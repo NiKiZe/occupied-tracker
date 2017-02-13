@@ -69,7 +69,7 @@ namespace OccupancyService.Repositories
             {
                 Description = room.Description,
                 IsOccupied = room.IsOccupied,
-                LastUpdate = room.LastUpdate
+                LastUpdate = room.LastUpdate.UtcDateTime
             };
             TableOperation insertOperation = TableOperation.Insert(roomEntity);
             await table.ExecuteAsync(insertOperation);
