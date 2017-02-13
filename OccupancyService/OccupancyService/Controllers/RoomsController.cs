@@ -331,12 +331,9 @@ namespace OccupancyService.Controllers
             if (roomEntity != null)
             {
                 // Update room status
-                if (roomEntity.IsOccupied != isOccupied)
-                {
-                    roomEntity.IsOccupied = isOccupied;
-                    PostSignalR(RoomChangeType.HiddenUpdate, new[] { roomEntity.ToRoom() });
-                }
+                roomEntity.IsOccupied = isOccupied;
                 roomEntity.LastUpdate = DateTime.UtcNow;
+                PostSignalR(RoomChangeType.HiddenUpdate, new[] { roomEntity.ToRoom() });
                 await repository.Update(roomEntity);
             }
 
