@@ -3,3 +3,5 @@ OccupancyService/OccupancyService/bin/
 *.user
 OccupancyService/.vs/
 OccupancyService/OccupancyService/Documentation/OccupancyService.XML
+OccupancyService/OccupancyService/index.js
+OccupancyService/OccupancyService/index.js.map

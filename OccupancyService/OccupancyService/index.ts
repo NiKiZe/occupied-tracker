@@ -1,33 +1,62 @@
-﻿function RoomsViewModel() {
-    this.rooms = ko.observableArray([]);
-    this.connectionStatusText = ko.observable("Connecting...");
-    this.connectionStatusClass = ko.observable("label-default");
-    this.reconnectButtonVisible = ko.observable(false);
-    this.reconnect = () => {
+﻿class RoomsViewModel {
+    rooms: KnockoutObservableArray<RoomViewModel>;
+    connectionStatusText: KnockoutObservable<string>;
+    connectionStatusClass: KnockoutObservable<string>;
+    reconnectButtonVisible: KnockoutObservable<boolean>;
+
+    constructor() {
+        this.rooms = ko.observableArray(<RoomViewModel[]>[]);
+        this.connectionStatusText = ko.observable("Connecting...");
+        this.connectionStatusClass = ko.observable("label-default");
+        this.reconnectButtonVisible = ko.observable(false);
+    }
+
+    reconnect() {
         refreshRoomList();
         connectToSignalR();
     }
 }
-function RoomViewModel(id, description, isOccupied, lastUpdate) {
-    var self = this;
-    self.Id = ko.observable(id);
-    self.Description = ko.observable(description);
-    self.IsOccupied = ko.observable(isOccupied);
-    self.LastUpdate = ko.observable(moment(lastUpdate));
-    self.TimeNow = ko.observable(moment());
 
-    self.IsOld = ko.computed(() => {
-        return self.LastUpdate().isBefore(self.TimeNow().subtract(60, 'minutes'));
-    });
-    self.IsAvailable = ko.computed(() => {
-        return !self.IsOld() && !self.IsOccupied();
-    });
-    self.IsUnavailable = ko.computed(() => {
-        return !self.IsOld() && self.IsOccupied();
-    });
+interface IRoom {
+// ReSharper disable InconsistentNaming
+    Id: number;
+    Description: string;
+    IsOccupied: boolean;
+    LastUpdate: string;
+// ReSharper restore InconsistentNaming
+}
 
-    // Update timer every minute
-    window.setInterval(() => { self.TimeNow(moment()); }, 60000);
+class RoomViewModel {
+    id: KnockoutObservable<number>;
+    description: KnockoutObservable<string>;
+    isOccupied: KnockoutObservable<boolean>;
+    lastUpdate: KnockoutObservable<any>; // TODO: Fix moment typings
+    timeNow: KnockoutObservable<any>; // TODO: Fix moment typings
+
+    isOld: KnockoutComputed<boolean>;
+    isAvailable: KnockoutComputed<boolean>;
+    isUnavailable: KnockoutComputed<boolean>;
+
+    constructor(id: number, description: string, isOccupied: boolean, lastUpdate: string) {
+        this.id = ko.observable(id);
+        this.description = ko.observable(description);
+        this.isOccupied = ko.observable(isOccupied);
+        this.lastUpdate = ko.observable(moment(lastUpdate));
+        this.timeNow = ko.observable(moment());
+
+        this.isOld = ko.computed(() => {
+            return this.lastUpdate().isBefore(this.timeNow().subtract(60, 'minutes'));
+        });
+        this.isAvailable = ko.computed(() => {
+            return !this.isOld() && !this.isOccupied();
+        });
+        this.isUnavailable = ko.computed(() => {
+            return !this.isOld() && this.isOccupied();
+        });
+
+        // Update timer every minute
+        window.setInterval(() => { this.timeNow(moment()); }, 60000);
+    }
 }
 
 var viewModel = new RoomsViewModel();
@@ -90,22 +119,21 @@ $.connection.hub.disconnected(() => {
         viewModel.reconnectButtonVisible(true);
     }
 });
-$.connection.roomsHub.client.roomsChanged = (changeType, newRooms) => {
-    newRooms.forEach((newRoom) => {
+$.connection.roomsHub.client.roomsChanged = (changeType: string, newRooms: IRoom[]) => {
+    newRooms.forEach((newRoom: IRoom) => {
         var newRoomViewModel = new RoomViewModel(newRoom.Id, newRoom.Description, newRoom.IsOccupied, newRoom.LastUpdate);
         for (var i = 0; i < viewModel.rooms().length; i++) {
             var oldRoomViewModel = viewModel.rooms()[i];
-            if (changeType === "updated" && oldRoomViewModel.Id() === newRoomViewModel.Id()) {
+            if (changeType === "updated" && oldRoomViewModel.id() === newRoomViewModel.id()) {
                 // Update room
                 viewModel.rooms.splice(i, 1);
                 viewModel.rooms.splice(i, 0, newRoomViewModel);
-                //viewModel.rooms.replace(oldRoomViewModel, newRoomViewModel);
                 return;
-            } else if (changeType === "deleted" && oldRoomViewModel.Id() === newRoomViewModel.Id()) {
+            } else if (changeType === "deleted" && oldRoomViewModel.id() === newRoomViewModel.id()) {
                 // Delete room
                 viewModel.rooms.splice(i, 1);
                 return;
-            } else if (changeType === "new" && oldRoomViewModel.Id() > newRoomViewModel.Id()) {
+            } else if (changeType === "new" && oldRoomViewModel.id() > newRoomViewModel.id()) {
                 // Add new room in middle of array
                 viewModel.rooms.splice(i, 0, newRoomViewModel);
                 return;
@@ -131,7 +159,7 @@ $(window).focus(() => {
 // Workaround to reconnect automatically if page is suspended for more than 5 seconds (mobile)
 var lastFired = new Date().getTime();
 setInterval(() => {
-    now = new Date().getTime();
+    var now = new Date().getTime();
     if (now - lastFired > 5000 && viewModel.reconnectButtonVisible()) {//if it's been more than 5 seconds
         viewModel.reconnect();
     }
