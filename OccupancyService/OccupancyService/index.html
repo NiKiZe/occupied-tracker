@@ -49,7 +49,7 @@
     </div>
     <div class="rooms">
         <!-- ko foreach: rooms -->
-        <h1 class="text-center"><span class="label" data-bind="text: Description, css: { 'label-success': !IsOccupied, 'label-danger': IsOccupied}"></span></h1>
+        <h1 class="text-center"><span class="label" data-bind="text: Description, css: { 'label-success': IsAvailable, 'label-danger': IsUnavailable, 'label-default': IsUnknown}"></span></h1>
         <!-- /ko -->
     </div>
 </div>

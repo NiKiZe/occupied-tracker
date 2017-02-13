@@ -8,12 +8,34 @@
         connectToSignalR();
     }
 }
+function RoomViewModel(id, description, isOccupied, lastUpdate) {
+    var self = this;
+    self.Id = ko.observable(id);
+    self.Description = ko.observable(description);
+    self.IsOccupied = ko.observable(isOccupied);
+    self.LastUpdate = ko.observable(lastUpdate);
+
+    self.IsAvailable = ko.computed(function() {
+        return !self.IsOccupied();
+    });
+    self.IsUnavailable = ko.computed(function () {
+        return self.IsOccupied();
+    });
+    self.IsUnknown = ko.computed(function () {
+        return false;
+    });
+}
+
 var viewModel = new RoomsViewModel();
 
 function refreshRoomList() {
     $.get("Rooms")
         .done(function (data) {
-            viewModel.rooms(data);
+            viewModel.rooms([]);
+            data.forEach(function(room) {
+                var roomViewModel = new RoomViewModel(room.Id, room.Description, room.IsOccupied, room.LastUpdate);
+                viewModel.rooms.push(roomViewModel);
+            });
         })
         .fail(function () {
             viewModel.connectionStatusText("Could not refresh room list");
@@ -65,20 +87,23 @@ $.connection.hub.disconnected(function () {
     }
 });
 $.connection.roomsHub.client.roomsChanged = function (changeType, newRooms) {
-    newRooms.forEach(function(newRoom) {
+    newRooms.forEach(function (newRoom) {
+        var newRoomViewModel = new RoomViewModel(newRoom.Id, newRoom.Description, newRoom.IsOccupied, newRoom.LastUpdate);
         for (var i = 0; i < viewModel.rooms().length; i++) {
-            var room = viewModel.rooms()[i];
-            if (changeType === "updated" && room.Id === newRoom.Id) {
+            var oldRoomViewModel = viewModel.rooms()[i];
+            if (changeType === "updated" && oldRoomViewModel.Id() === newRoomViewModel.Id()) {
                 // Update room
-                viewModel.rooms.replace(room, newRoom);
+                viewModel.rooms.splice(i, 1);
+                viewModel.rooms.splice(i, 0, newRoomViewModel);
+                //viewModel.rooms.replace(oldRoomViewModel, newRoomViewModel);
                 return;
-            } else if (changeType === "deleted" && room.Id === newRoom.Id) {
+            } else if (changeType === "deleted" && oldRoomViewModel.Id() === newRoomViewModel.Id()) {
                 // Delete room
                 viewModel.rooms.splice(i, 1);
                 return;
-            } else if (changeType === "new" && room.Id > newRoom.Id) {
+            } else if (changeType === "new" && oldRoomViewModel.Id() > newRoomViewModel.Id()) {
                 // Add new room in middle of array
-                viewModel.rooms.splice(i, 0, newRoom);
+                viewModel.rooms.splice(i, 0, newRoomViewModel);
                 return;
             }
         }
@@ -86,7 +111,7 @@ $.connection.roomsHub.client.roomsChanged = function (changeType, newRooms) {
         // Handle new room at the end
         if (changeType === "new") {
             // Add new room at end of array
-            viewModel.rooms.push(newRoom);
+            viewModel.rooms.push(newRoomViewModel);
             return;
         }
     });

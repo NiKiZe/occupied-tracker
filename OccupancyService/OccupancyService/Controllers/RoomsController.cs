@@ -345,6 +345,37 @@ namespace OccupancyService.Controllers
         }
 
         /// <summary>
+        /// Fake-updates the status of a given room
+        /// </summary>
+        /// <remarks>
+        /// Updates the status of a given room, but only sends an event to all listeners. Will not change DB.
+        /// </remarks>
+        /// <param name="id">The room id</param>
+        /// <param name="isOccupied">Indicates if the room is currently occupied or not</param>
+        /// <param name="passcode">Passcode for this method</param>
+        /// <returns></returns>
+        [Route("{id}/FakeOccupancies")]
+        [HttpPost]
+        public async Task PostFakeOccupancy(long id, bool isOccupied, string passcode = null)
+        {
+            if (!IsAuthorized(passcode, PasscodeType.Write))
+            {
+                throw new AuthenticationException("Wrong passcode");
+            }
+
+            // Get old room version if existing
+            var repository = new RoomRepository();
+            var roomEntity = await repository.Get(id);
+            if (roomEntity != null)
+            {
+                // Fake room status
+                roomEntity.IsOccupied = isOccupied;
+                roomEntity.LastUpdate = DateTime.UtcNow;
+                PostSignalR(RoomChangeType.Update, new[] { roomEntity.ToRoom() });
+            }
+        }
+
+        /// <summary>
         /// Delete all occupancies in a single room
         /// </summary>
         /// <remarks>
