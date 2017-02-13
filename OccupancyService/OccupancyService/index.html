@@ -21,6 +21,7 @@
 <script src="Scripts/jquery.signalR-2.1.2.min.js"></script>
 <script src="Scripts/knockout-3.4.0.js"></script>
 <script src="Scripts/bootstrap.min.js"></script>
+<script src="Scripts/moment.min.js"></script>
 <div class="container">
     <nav class="navbar navbar-default navbar-fixed-top">
         <div class="container">
@@ -49,7 +50,7 @@
     </div>
     <div class="rooms">
         <!-- ko foreach: rooms -->
-        <h1 class="text-center"><span class="label" data-bind="text: Description, css: { 'label-success': IsAvailable, 'label-danger': IsUnavailable, 'label-default': IsUnknown}"></span></h1>
+        <h1 class="text-center"><span class="label" data-bind="text: Description, css: { 'label-success': IsAvailable, 'label-danger': IsUnavailable, 'label-default': IsOld}"></span></h1>
         <!-- /ko -->
     </div>
 </div>

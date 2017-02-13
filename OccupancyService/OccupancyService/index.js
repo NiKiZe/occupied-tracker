@@ -13,17 +13,21 @@ function RoomViewModel(id, description, isOccupied, lastUpdate) {
     self.Id = ko.observable(id);
     self.Description = ko.observable(description);
     self.IsOccupied = ko.observable(isOccupied);
-    self.LastUpdate = ko.observable(lastUpdate);
+    self.LastUpdate = ko.observable(moment(lastUpdate));
+    self.TimeNow = ko.observable(moment());
 
+    self.IsOld = ko.computed(() => {
+        return self.LastUpdate().isBefore(self.TimeNow().subtract(60, 'minutes'));
+    });
     self.IsAvailable = ko.computed(() => {
-        return !self.IsOccupied();
+        return !self.IsOld() && !self.IsOccupied();
     });
     self.IsUnavailable = ko.computed(() => {
-        return self.IsOccupied();
+        return !self.IsOld() && self.IsOccupied();
     });
-    self.IsUnknown = ko.computed(() => {
-        return false;
-    });
+
+    // Update timer every minute
+    window.setInterval(() => { self.TimeNow(moment()); }, 60000);
 }
 
 var viewModel = new RoomsViewModel();
