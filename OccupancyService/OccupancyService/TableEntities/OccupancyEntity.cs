@@ -18,7 +18,6 @@ namespace OccupancyService.TableEntities
             PartitionKey = roomId.ToString("d19");
             var rowKey = DateTime.MaxValue.Ticks - startTime.Ticks;
             RowKey = rowKey.ToString("d19");
-            StartTime = startTime;
         }
 
         public OccupancyEntity() { }
@@ -36,7 +35,15 @@ namespace OccupancyService.TableEntities
         /// <summary>
         /// The time the room started to become occupied, in UTC
         /// </summary>
-        public DateTime StartTime { get; }
+        public DateTime StartTime
+        {
+            get
+            {
+                var ticksDiff = long.Parse(RowKey);
+                var startTimeTicks = DateTime.MaxValue.Ticks - ticksDiff;
+                return new DateTime(startTimeTicks);
+            }
+        }
 
         /// <summary>
         /// Converts this occupancy entity to a normal occupancy
