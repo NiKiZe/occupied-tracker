@@ -3,12 +3,17 @@
     connectionStatusText: KnockoutObservable<string>;
     connectionStatusClass: KnockoutObservable<string>;
     reconnectButtonVisible: KnockoutObservable<boolean>;
+    timeNow: KnockoutObservable<any>; // TODO: Fix moment typings
 
     constructor() {
         this.rooms = ko.observableArray(<RoomViewModel[]>[]);
         this.connectionStatusText = ko.observable("Connecting...");
         this.connectionStatusClass = ko.observable("label-default");
         this.reconnectButtonVisible = ko.observable(false);
+        this.timeNow = ko.observable(moment());
+
+        // Update timer every minute
+        window.setInterval(() => { this.timeNow(moment()); }, 60000);
     }
 
     reconnect() {
@@ -31,7 +36,6 @@ class RoomViewModel {
     description: KnockoutObservable<string>;
     isOccupied: KnockoutObservable<boolean>;
     lastUpdate: KnockoutObservable<any>; // TODO: Fix moment typings
-    timeNow: KnockoutObservable<any>; // TODO: Fix moment typings
 
     isOld: KnockoutComputed<boolean>;
     isAvailable: KnockoutComputed<boolean>;
@@ -42,10 +46,10 @@ class RoomViewModel {
         this.description = ko.observable(description);
         this.isOccupied = ko.observable(isOccupied);
         this.lastUpdate = ko.observable(moment(lastUpdate));
-        this.timeNow = ko.observable(moment());
 
         this.isOld = ko.computed(() => {
-            return this.lastUpdate().isBefore(this.timeNow().subtract(60, 'minutes'));
+            var timeLimit = viewModel.timeNow().clone().subtract(60, 'minutes');
+            return this.lastUpdate().isBefore(timeLimit);
         });
         this.isAvailable = ko.computed(() => {
             return !this.isOld() && !this.isOccupied();
@@ -53,9 +57,6 @@ class RoomViewModel {
         this.isUnavailable = ko.computed(() => {
             return !this.isOld() && this.isOccupied();
         });
-
-        // Update timer every minute
-        window.setInterval(() => { this.timeNow(moment()); }, 60000);
     }
 }
 
