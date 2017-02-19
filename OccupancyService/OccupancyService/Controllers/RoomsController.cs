@@ -36,25 +36,7 @@ namespace OccupancyService.Controllers
             var rooms = (await repository.GetAll()).Select(x => x.ToRoom()).ToList();
             if (!IsAuthorized(passcode, PasscodeType.Read))
             {
-                // Filtered list
-                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMin"));
-                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMax"));
-                foreach (var room in rooms)
-                {
-                    if (room.LastUpdate.TimeOfDay < minTime)
-                    {
-                        // Simulate exit at previous day office closing hours
-                        room.IsOccupied = false;
-                        var previousDay = room.LastUpdate.Date.AddDays(-1);
-                        room.LastUpdate = new DateTimeOffset(previousDay.Year, previousDay.Month, previousDay.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds, room.LastUpdate.Offset);
-                    }
-                    else if (room.LastUpdate.TimeOfDay > maxTime)
-                    {
-                        // Simulate exit at office closing hours
-                        room.IsOccupied = false;
-                        room.LastUpdate = new DateTimeOffset(room.LastUpdate.Year, room.LastUpdate.Month, room.LastUpdate.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds, room.LastUpdate.Offset);
-                    }
-                }
+                CensorRooms(rooms);
             }
             return rooms;
         }
@@ -128,23 +110,7 @@ namespace OccupancyService.Controllers
             var room = (await repository.Get(id))?.ToRoom();
             if (room != null &&!IsAuthorized(passcode, PasscodeType.Read))
             {
-                // Room status always unoccupied outside office hours
-                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMin"));
-                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMax"));
-                
-                if (room.LastUpdate.TimeOfDay < minTime)
-                {
-                    // Simulate exit at previous day office closing hours
-                    room.IsOccupied = false;
-                    var previousDay = room.LastUpdate.Date.AddDays(-1);
-                    room.LastUpdate = new DateTimeOffset(previousDay.Year, previousDay.Month, previousDay.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds, room.LastUpdate.Offset);
-                }
-                else if (room.LastUpdate.TimeOfDay > maxTime)
-                {
-                    // Simulate exit at office closing hours
-                    room.IsOccupied = false;
-                    room.LastUpdate = new DateTimeOffset(room.LastUpdate.Year, room.LastUpdate.Month, room.LastUpdate.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds, room.LastUpdate.Offset);
-                }
+                CensorRoom(room);
             }
             return room;
         }
@@ -232,13 +198,10 @@ namespace OccupancyService.Controllers
             var repository = new OccupancyRepository();
             var occupancies = (await repository.GetAll())
                 .Select(x => x.ToOccupancy());
+
             if (!IsAuthorized(passcode, PasscodeType.Read))
             {
-                // Only show occupancies within the set time
-                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMin"));
-                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMax"));
-                occupancies = occupancies
-                    .Where(x => x.StartTime.TimeOfDay >= minTime && x.StartTime.TimeOfDay <= maxTime);
+                occupancies = CensorOccupancies(occupancies);
             }
             return occupancies.OrderByDescending(x => x.StartTime);
         }
@@ -297,11 +260,7 @@ namespace OccupancyService.Controllers
 
             if (!IsAuthorized(passcode, PasscodeType.Read))
             {
-                // Only show occupancies within the set time
-                var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMin"));
-                var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMax"));
-                occupancies = occupancies
-                    .Where(x => x.StartTime.TimeOfDay >= minTime && x.StartTime.TimeOfDay <= maxTime);
+                occupancies = CensorOccupancies(occupancies);
             }
             return occupancies.OrderByDescending(x => x.StartTime);
         }
@@ -445,7 +404,9 @@ namespace OccupancyService.Controllers
                 var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMax"));
                 var currentLocalTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, LocalTimeZone);
                 var currentTimeOfDay = currentLocalTime.TimeOfDay;
-                if (currentTimeOfDay < minTime)
+                if (currentLocalTime.DayOfWeek == DayOfWeek.Saturday ||
+                    currentLocalTime.DayOfWeek == DayOfWeek.Sunday ||
+                    currentTimeOfDay < minTime)
                 {
                     // Do not show
                     return;
@@ -514,6 +475,59 @@ namespace OccupancyService.Controllers
                     throw new Exception("Unknown passcode type");
             }
             return string.IsNullOrEmpty(correctPasscode) || passcode == correctPasscode;
+        }
+
+        private static void CensorRoom(Room room)
+        {
+            CensorRooms(Enumerable.Repeat(room, 1));
+        }
+
+        private static void CensorRooms(IEnumerable<Room> rooms)
+        {
+            // Filtered list
+            var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMin"));
+            var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMax"));
+            foreach (var room in rooms)
+            {
+                if (room.LastUpdate.DayOfWeek == DayOfWeek.Saturday || room.LastUpdate.DayOfWeek == DayOfWeek.Sunday || room.LastUpdate.TimeOfDay < minTime)
+                {
+                    // Simulate exit at previous work day office closing hours
+                    room.IsOccupied = false;
+                    int subtractDays;
+                    switch (room.LastUpdate.DayOfWeek)
+                    {
+                        case DayOfWeek.Monday:
+                            subtractDays = 3;
+                            break;
+                        case DayOfWeek.Sunday:
+                            subtractDays = 2;
+                            break;
+                        default:
+                            subtractDays = 1;
+                            break;
+                    }
+                    var previousWorkDay = room.LastUpdate.Date.AddDays(-subtractDays);
+                    room.LastUpdate = new DateTimeOffset(previousWorkDay.Year, previousWorkDay.Month, previousWorkDay.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds, room.LastUpdate.Offset);
+                }
+                else if (room.LastUpdate.TimeOfDay > maxTime)
+                {
+                    // Simulate exit at office closing hours
+                    room.IsOccupied = false;
+                    room.LastUpdate = new DateTimeOffset(room.LastUpdate.Year, room.LastUpdate.Month, room.LastUpdate.Day, maxTime.Hours, maxTime.Minutes, maxTime.Seconds, room.LastUpdate.Offset);
+                }
+            }
+        }
+
+        private static IEnumerable<Occupancy> CensorOccupancies(IEnumerable<Occupancy> occupancies)
+        {
+            // Only show occupancies within the set time
+            var minTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMin"));
+            var maxTime = TimeSpan.Parse(CloudConfigurationManager.GetSetting("UnprotectedLocalTimeMax"));
+            return occupancies.Where(x =>
+                x.StartTime.DayOfWeek != DayOfWeek.Saturday &&
+                x.StartTime.DayOfWeek != DayOfWeek.Sunday &&
+                x.StartTime.TimeOfDay >= minTime &&
+                x.StartTime.TimeOfDay <= maxTime);
         }
     }
 }
