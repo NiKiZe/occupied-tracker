@@ -42,6 +42,8 @@
 #define NUMPIXELS      1
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, NEOPXPIN, NEO_GRB + NEO_KHZ800);
 
+#include "Ds1Wire.h"
+
 /* --- toa ---- */
 const int delayval = 200;  // Delay for a period of time (in milliseconds).
 unsigned long timeChanged = 0;
@@ -587,4 +589,6 @@ void loop() {
     checkInput();
     lastInputCheck = millis();
   }
+
+  handleOneWireLoop();
 }
