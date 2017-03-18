@@ -20,16 +20,14 @@
 #include <ESP8266WiFi.h>          //https://github.com/esp8266/Arduino
 
 //needed for library
-#include <DNSServer.h>
 #include <ESP8266WebServer.h>
 #include "WiFiManager.h"          //https://github.com/tzapu/WiFiManager
 
 #include <TimeLib.h>              //https://github.com/PaulStoffregen/Time
 #include "ntp.h"
-#include "FS.h"
+#include <FS.h>
 
-#include <ArduinoOTA.h>
-#include <ESP8266HTTPUpdateServer.h>
+#include "OTAHelper.h"
 
 #include <ESP8266HTTPClient.h>
 
@@ -59,11 +57,6 @@ String passcode;
 /* --- /toa --- */
 
 ESP8266WebServer http(80);
-ESP8266HTTPUpdateServer httpUpdater(true);
-
-const char* update_path = "/flashfw";
-const char* update_username = "firmware";
-const char* update_password = "update";
 
 void configModeCallback (WiFiManager *myWiFiManager) {
   Serial.println("Entered config mode");
@@ -108,40 +101,6 @@ void handleFileList() {
   output += "]";
   http.send(200, "text/json", output);
 }
-
-void OTASetup() {
-  // Port defaults to 8266
-  // ArduinoOTA.setPort(8266);
-
-  // Hostname defaults to esp8266-[ChipID]
-  // ArduinoOTA.setHostname("myesp8266");
-
-  // No authentication by default
-  ArduinoOTA.setPassword(update_password);
-
-  ArduinoOTA.onStart([]() {
-    Serial.println(String(millis()) + " OTA Start");
-  });
-  ArduinoOTA.onEnd([]() {
-    Serial.println(String(millis()) + " \nOTA End");
-    SPIFFS.end();
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.print(millis());
-    Serial.printf(" OTA Progress: %u%%\r", (progress / (total / 100)));
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.print(millis());
-    Serial.printf(" OTA Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("OTA Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) Serial.println("OTA Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) Serial.println("OTA Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("OTA Receive Failed");
-    else if (error == OTA_END_ERROR) Serial.println("OTA End Failed");
-  });
-  ArduinoOTA.begin();
-}
-
 
 bool loadRoomMap() {
   if (!SPIFFS.exists("/roommap"))
@@ -402,10 +361,7 @@ void setup() {
   
   setupHttp();
 
-  OTASetup();
-  httpUpdater.setup(&http, update_path, update_username, update_password);
-  Serial.print(millis());
-  Serial.printf(" HTTPUpdateServer ready! Open http://%s%s in your browser and login with username '%s' and password '%s'\n", WiFi.localIP().toString().c_str(), update_path, update_username, update_password);
+  OTASetup(&http);
 
   http.begin();
   DBG_OUTPUT_PORT.println(String(millis()) + " HTTP server started");
