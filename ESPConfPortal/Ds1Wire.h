@@ -112,11 +112,15 @@ void dods2413Read(byte * addr) {
 
 void handleOneWireLoop() {
   byte addr[8];
+  static bool lastWasReset = false;
   if ( !ds.search(addr)) {
     ds.reset_search();
-    Serial.println("W reset.");
+    if (!lastWasReset)
+      Serial.println("W reset.");
+    lastWasReset = true;
     return;
   }
+  lastWasReset = false;
 
   Serial.print("W");
   printba(addr, 8);
