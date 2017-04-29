@@ -492,7 +492,6 @@ void setup() {
   // Ensure we are not used to something else
   //pinMode(3, FUNCTION3);
   for (int i = 0; i < NUMPINS; i++) {
-    digitalWrite(toaPins[i], LOW);
     pinMode(toaPins[i], INPUT);
     prevState[i] = HIGH;
     lastStateChange[i] = 0;
@@ -532,10 +531,9 @@ bool checkInput() {
   bool allFree = true;
   bool noneFree = true;
   for (int i = 0; i < NUMPINS; i++) {
-    digitalWrite(toaPins[i], HIGH);
     pinMode(toaPins[i], INPUT_PULLUP);
+    delay(1); // wait for it to come up
     isFreeState[i] = digitalRead(toaPins[i]);
-    digitalWrite(toaPins[i], LOW);
     pinMode(toaPins[i], INPUT);
 
     if (!isFreeState[i])
