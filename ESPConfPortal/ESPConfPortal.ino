@@ -531,10 +531,7 @@ bool checkInput() {
   bool allFree = true;
   bool noneFree = true;
   for (int i = 0; i < NUMPINS; i++) {
-    pinMode(toaPins[i], INPUT_PULLUP);
-    delay(1); // wait for it to come up
     isFreeState[i] = digitalRead(toaPins[i]);
-    pinMode(toaPins[i], INPUT);
 
     if (!isFreeState[i])
       allFree = false;
